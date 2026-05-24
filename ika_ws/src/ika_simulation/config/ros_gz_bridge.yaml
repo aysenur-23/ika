@@ -1,0 +1,81 @@
+# ros_gz_bridge konfigurasyon dosyasi.
+# Gazebo Harmonic <-> ROS 2 Jazzy topic koprusu.
+#
+# Yon: GZ_TO_ROS, ROS_TO_GZ, BIDIRECTIONAL
+#
+# Onemli tasarim notu:
+#   /odom topic'i rf2o_laser_odometry tarafindan, /tf ise EKF tarafindan
+#   yayimlaniyor. Bu nedenle Gazebo'nun odom + tf cikislari /odom_truth
+#   altina yonlendiriliyor (yer gercegi karsilastirmasi icin).
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/cmd_vel"
+  gz_topic_name: "/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Gazebo'nun yer-gercegi odometrisi (rf2o ile karsilastirma icin)
+- ros_topic_name: "/odom_truth"
+  gz_topic_name: "/sim/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# Joint states - robot_state_publisher tukettiriyor
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+# Sensor: 2D Lidar
+- ros_topic_name: "/scan"
+  gz_topic_name: "/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+# Sensor: IMU
+- ros_topic_name: "/imu/data"
+  gz_topic_name: "/imu/data"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Sensor: GPS (NavSat)
+- ros_topic_name: "/gps/fix"
+  gz_topic_name: "/gps/fix"
+  ros_type_name: "sensor_msgs/msg/NavSatFix"
+  gz_type_name: "gz.msgs.NavSat"
+  direction: GZ_TO_ROS
+
+# Sensor: OAK-D Lite (RGBD)
+- ros_topic_name: "/oak/stereo/image_raw"
+  gz_topic_name: "/oak/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/oak/depth/image_raw"
+  gz_topic_name: "/oak/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/oak/points"
+  gz_topic_name: "/oak/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/oak/stereo/camera_info"
+  gz_topic_name: "/oak/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

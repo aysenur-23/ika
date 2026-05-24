@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+install/
+log/
+*.egg-info/
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# rosbag
+*.db3
+*.mcap
+
+# colcon
+COLCON_IGNORE

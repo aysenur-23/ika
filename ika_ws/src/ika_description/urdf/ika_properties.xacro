@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Arac kinematik parametreleri - gercek arac olcumleriyle gunce-llenecek.
+       Bu degerler config/robot_params.yaml ile uyumlu olmalidir. -->
+  <xacro:property name="wheel_base"      value="0.30"/>
+  <xacro:property name="wheel_radius"    value="0.05"/>
+  <xacro:property name="wheel_width"     value="0.04"/>
+  <xacro:property name="wheel_track"     value="0.30"/>   <!-- on-arka teker ekseni mesafesi -->
+  <xacro:property name="robot_length"    value="0.45"/>
+  <xacro:property name="robot_width"     value="0.30"/>
+  <xacro:property name="robot_height"    value="0.15"/>
+  <xacro:property name="base_mass"       value="3.0"/>
+  <xacro:property name="wheel_mass"      value="0.15"/>
+
+  <!-- Sensor montaj pozisyonlari (base_link merkezinden) -->
+  <xacro:property name="lidar_x"   value="0.15"/>
+  <xacro:property name="lidar_z"   value="0.12"/>
+  <xacro:property name="camera_x"  value="0.10"/>
+  <xacro:property name="camera_z"  value="0.15"/>
+  <xacro:property name="camera_pitch" value="0.15"/>   <!-- ~8.6 derece asagi -->
+  <xacro:property name="imu_z"     value="0.05"/>
+  <xacro:property name="gps_z"     value="0.18"/>
+
+  <!-- Renkler -->
+  <material name="ika_body">
+    <color rgba="0.2 0.4 0.7 1.0"/>
+  </material>
+  <material name="ika_wheel">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="ika_sensor">
+    <color rgba="0.8 0.2 0.2 1.0"/>
+  </material>
+  <material name="ika_dark">
+    <color rgba="0.15 0.15 0.15 1.0"/>
+  </material>
+
+  <!-- Yardimci makrolar -->
+  <xacro:macro name="box_inertial" params="mass x y z">
+    <inertial>
+      <mass value="${mass}"/>
+      <origin xyz="0 0 0"/>
+      <inertia
+        ixx="${mass*(y*y + z*z)/12.0}" ixy="0" ixz="0"
+        iyy="${mass*(x*x + z*z)/12.0}" iyz="0"
+        izz="${mass*(x*x + y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertial" params="mass r l">
+    <inertial>
+      <mass value="${mass}"/>
+      <origin xyz="0 0 0"/>
+      <inertia
+        ixx="${mass*(3*r*r + l*l)/12.0}" ixy="0" ixz="0"
+        iyy="${mass*(3*r*r + l*l)/12.0}" iyz="0"
+        izz="${mass*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+</robot>

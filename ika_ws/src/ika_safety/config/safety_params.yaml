@@ -1,0 +1,26 @@
+safety_supervisor:
+  ros__parameters:
+    # Sensor zaman asimi esikleri
+    lidar_timeout_s: 1.0
+    depth_timeout_s: 1.5
+    imu_timeout_s: 0.5
+
+    # Engel mesafe zonlari (collision_monitor ile uyumlu)
+    stop_zone_distance_m: 0.25
+    slowdown_zone_distance_m: 0.55
+    slowdown_speed_factor: 0.3
+
+    # Terrain entegrasyonu
+    terrain_stop_classes: ["DROPOFF_DANGER", "IMPASSABLE"]
+    terrain_slow_classes: ["CAUTION", "UNKNOWN"]
+
+    # Topic'ler - sim/real arasinda kolay degisim
+    cmd_vel_in_topic: /cmd_vel_collision
+    cmd_vel_out_topic: /cmd_vel_safe
+    scan_topic: /scan
+    depth_topic: /oak/depth/image_raw
+    imu_topic: /imu/data
+
+    # Genel
+    watchdog_rate_hz: 20.0
+    recovery_wait_s: 3.0

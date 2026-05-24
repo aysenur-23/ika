@@ -1,0 +1,29 @@
+terrain_perception:
+  ros__parameters:
+    # Cukur / kenar algilama
+    dropoff_depth_threshold_m: 0.15
+    dropoff_detection_width_m: 0.40
+    dropoff_lookout_distance_m: 0.60
+    ground_plane_fit_tolerance_m: 0.04
+
+    # Rampa siniflandirma
+    max_safe_slope_deg: 15.0
+    max_caution_slope_deg: 25.0
+
+    # Adim / engel
+    max_step_height_m: 0.04
+
+    # Genel
+    terrain_confidence_threshold: 0.6
+    terrain_slowdown_speed_mps: 0.10
+
+    # Yayim
+    costmap_resolution: 0.05
+    obstacle_decay_time_s: 2.0
+    publish_rate_hz: 5.0
+
+    # Sensor topic'leri
+    depth_topic: /oak/depth/image_raw
+    points_topic: /oak/points
+    imu_topic: /imu/data
+    camera_info_topic: /oak/stereo/camera_info

@@ -1,0 +1,24 @@
+# IKA arac kinematik parametreleri.
+# TUM DEGERLER gercek arac olcumleriyle kalibre edilmeli.
+robot:
+  wheel_base: 0.30          # Sol-sag teker aralig (m) - olcum
+  wheel_radius: 0.05        # Teker yaricapi (m) - olcum
+  robot_width: 0.35         # Toplam genislik (m)
+  robot_length: 0.45        # Toplam uzunluk (m)
+  robot_height: 0.20        # Yerden kameraya (m)
+  ground_clearance: 0.03    # Minimum yerden yukseklik (m)
+  max_linear_speed: 0.25    # Encoder yok - dusuk
+  max_angular_speed: 0.8
+  mass_kg: 3.0
+
+base_controller:
+  ros__parameters:
+    serial_port: /dev/ika_arduino
+    baud_rate: 115200
+    wheel_base: 0.30
+    max_linear_speed: 0.25
+    max_angular_speed: 0.8
+    cmd_vel_timeout: 0.5
+    publish_rate_hz: 20.0
+    dry_run: false
+    cmd_vel_topic: /cmd_vel_safe

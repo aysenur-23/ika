@@ -1,0 +1,14 @@
+# Test gorevi - simulasyon icin map frame'inde 3 waypoint.
+waypoints:
+  - x: 2.0
+    y: 0.5
+    yaw: 0.0
+    label: hedef_1
+  - x: 5.0
+    y: 1.2
+    yaw: 1.57
+    label: hedef_2
+  - x: 0.0
+    y: 0.0
+    yaw: 3.14
+    label: baz

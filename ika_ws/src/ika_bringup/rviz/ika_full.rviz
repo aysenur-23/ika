@@ -1,0 +1,90 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+      Size (m): 0.04
+    - Class: rviz_default_plugins/PointCloud2
+      Name: DepthCloud
+      Enabled: true
+      Topic:
+        Value: /oak/points
+      Size (m): 0.02
+    - Class: rviz_default_plugins/Map
+      Name: SLAM Map
+      Enabled: true
+      Topic:
+        Value: /map
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Map
+      Name: Terrain Obstacles
+      Enabled: true
+      Topic:
+        Value: /terrain_obstacles
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Polygon
+      Name: Collision Stop Zone
+      Enabled: true
+      Topic:
+        Value: /collision_poly_stop
+      Color: 255; 50; 50
+    - Class: rviz_default_plugins/Polygon
+      Name: Collision Approach
+      Enabled: true
+      Topic:
+        Value: /collision_poly_approach
+      Color: 240; 200; 50
+    - Class: rviz_default_plugins/Odometry
+      Name: EKF Odom
+      Enabled: true
+      Topic:
+        Value: /odometry/filtered
+      Position Tolerance: 0.05
+      Angle Tolerance: 0.05
+  Global Options:
+    Fixed Frame: map
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Value: /clicked_point
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 8.0
+      Pitch: 0.7
+      Yaw: 0.7
