@@ -1,0 +1,3 @@
+# Bu dizinde SLAM ile uretilen haritalar (test_map.yaml, .pgm)
+# ve keepout maske dosyalari (keepout_mask.yaml, .pgm) saklanir.
+# Ornek olusturma talimatlari icin KEEPOUT.md'ye bakin.

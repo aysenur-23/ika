@@ -151,6 +151,11 @@ global_costmap:
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "terrain_layer", "inflation_layer"]
+      # Keepout zonu aktif etmek icin:
+      #   1) ika_navigation/maps/keepout_mask.{yaml,pgm} olusturun (DENEMELER.md 12)
+      #   2) plugins listesine "keepout_filter" ekleyin
+      #   3) costmap_filters_info_server lifecycle node'unu calistirin
+      filters: ["keepout_filter"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -189,6 +194,31 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         inflation_radius: 0.45
+
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/costmap_filter_info"
+
+# Keepout zone icin gereken yardimci node'lar.
+# Aktiflestirmek icin: ika_navigation/launch/navigation.launch.py icine
+# bu node'lari ekle ve lifecycle_manager_navigation listesine dahil et.
+filter_mask_server:
+  ros__parameters:
+    use_sim_time: false
+    frame_id: "map"
+    topic_name: "/keepout_filter_mask"
+    # Maske dosyasi - kullanici saglar (bkz. KEEPOUT.md)
+    yaml_filename: "keepout_mask.yaml"
+
+costmap_filter_info_server:
+  ros__parameters:
+    use_sim_time: false
+    type: 0                       # 0 = KeepoutFilter
+    filter_info_topic: "/costmap_filter_info"
+    mask_topic: "/keepout_filter_mask"
+    base: 0.0
+    multiplier: 1.0
 
 local_costmap:
   local_costmap:

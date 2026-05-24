@@ -34,6 +34,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 apt_install() {
+  # Toplu kurulum - tek paket eksikse tum batch hata verir.
+  # Garanti var olan paketler icin kullan.
   local pkgs=("$@")
   local need=()
   for p in "${pkgs[@]}"; do
@@ -45,6 +47,46 @@ apt_install() {
   fi
   echo "Kurulacak: ${need[*]}"
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${need[@]}"
+}
+
+apt_install_safe() {
+  # Tolerantli kurulum - her paketi tek tek dener, bulunmayan paketi atlar.
+  # Olabilirligi belirsiz ROS paketleri icin kullan (jazzy apt deposu eksik olabilir).
+  local missing=()
+  for p in "$@"; do
+    if dpkg -s "$p" >/dev/null 2>&1; then
+      ok "Zaten kurulu: $p"
+    elif sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$p" 2>/dev/null; then
+      ok "Kuruldu: $p"
+    else
+      warn "Bulunamadi (apt): $p - source clone gerekebilir"
+      missing+=("$p")
+    fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    APT_MISSING+=("${missing[@]}")
+  fi
+}
+
+# Eksik paketleri biriktirme listesi (apt_install_safe doldurur)
+declare -a APT_MISSING=()
+
+clone_into_workspace() {
+  # ws/src/third_party altina git clone (idempotent)
+  local url="$1" name="$2" branch="${3:-}"
+  local target="$PROJECT_ROOT/ika_ws/src/third_party/$name"
+  if [[ -d "$target/.git" ]]; then
+    ok "Zaten clone: $name"
+    return 0
+  fi
+  mkdir -p "$PROJECT_ROOT/ika_ws/src/third_party"
+  local args=(--depth 1)
+  [[ -n "$branch" ]] && args+=(--branch "$branch")
+  if git clone "${args[@]}" "$url" "$target" 2>/dev/null; then
+    ok "Clone OK: $name"
+  else
+    warn "Clone basarisiz: $name ($url)"
+  fi
 }
 
 ensure_line() {
@@ -143,19 +185,28 @@ phase_ros() {
 phase_packages() {
   phase "FAZ 3: Proje ROS paketleri"
 
-  step "Navigation + SLAM + lokalizasyon"
-  apt_install \
+  step "Nav2 + SLAM + lokalizasyon (core)"
+  # ros-jazzy-navigation2 metapaketi Jazzy'de YOK - nav2-bringup yeterli
+  apt_install_safe \
     ros-jazzy-nav2-bringup \
-    ros-jazzy-navigation2 \
     ros-jazzy-slam-toolbox \
-    ros-jazzy-robot-localization \
-    ros-jazzy-rf2o-laser-odometry
+    ros-jazzy-robot-localization
+
+  step "rf2o lidar odom (apt yoksa source)"
+  if ! apt_install_safe ros-jazzy-rf2o-laser-odometry; then :; fi
+  if ! dpkg -s ros-jazzy-rf2o-laser-odometry >/dev/null 2>&1; then
+    clone_into_workspace https://github.com/MAPIRlab/rf2o_laser_odometry.git rf2o_laser_odometry
+  fi
 
   step "Gazebo Harmonic + bridge"
-  apt_install ros-jazzy-ros-gz ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim ros-jazzy-ros-gz-image
+  apt_install_safe \
+    ros-jazzy-ros-gz \
+    ros-jazzy-ros-gz-bridge \
+    ros-jazzy-ros-gz-sim \
+    ros-jazzy-ros-gz-image
 
   step "Robot tanim / kontrol"
-  apt_install \
+  apt_install_safe \
     ros-jazzy-robot-state-publisher \
     ros-jazzy-joint-state-publisher \
     ros-jazzy-joint-state-publisher-gui \
@@ -164,7 +215,7 @@ phase_packages() {
     ros-jazzy-tf2-ros
 
   step "Teleop + topic tools + diagnostics"
-  apt_install \
+  apt_install_safe \
     ros-jazzy-teleop-twist-keyboard \
     ros-jazzy-topic-tools \
     ros-jazzy-diagnostic-updater \
@@ -174,29 +225,31 @@ phase_packages() {
     ros-jazzy-rqt-graph \
     ros-jazzy-rqt-plot
 
-  step "GPS surucusu"
-  apt_install ros-jazzy-nmea-navsat-driver || \
-    warn "ros-jazzy-nmea-navsat-driver bulunamadi - source build gerekebilir"
+  step "GPS surucusu (apt yoksa source)"
+  if ! apt_install_safe ros-jazzy-nmea-navsat-driver; then :; fi
+  if ! dpkg -s ros-jazzy-nmea-navsat-driver >/dev/null 2>&1; then
+    clone_into_workspace https://github.com/ros-drivers/nmea_navsat_driver.git nmea_navsat_driver ros2
+  fi
 
-  step "Lidar surucusu (RPLIDAR C1)"
-  if ! apt_install ros-jazzy-sllidar-ros2; then
-    warn "sllidar_ros2 apt'te yok - workspace icine source clone'lanacak"
-    if [[ -d "$PROJECT_ROOT/ika_ws/src" ]]; then
-      mkdir -p "$PROJECT_ROOT/ika_ws/src/third_party"
-      if [[ ! -d "$PROJECT_ROOT/ika_ws/src/third_party/sllidar_ros2" ]]; then
-        git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git \
-          "$PROJECT_ROOT/ika_ws/src/third_party/sllidar_ros2"
-        ok "sllidar_ros2 clone'landi"
-      else
-        ok "sllidar_ros2 zaten clone"
-      fi
-    fi
+  step "Lidar surucusu (RPLIDAR C1) - jazzy apt'te genelde yok"
+  if ! apt_install_safe ros-jazzy-sllidar-ros2; then :; fi
+  if ! dpkg -s ros-jazzy-sllidar-ros2 >/dev/null 2>&1; then
+    clone_into_workspace https://github.com/Slamtec/sllidar_ros2.git sllidar_ros2
   fi
 
   step "Depth kamera surucusu (OAK-D Lite / depthai)"
-  if ! apt_install ros-jazzy-depthai-ros-driver; then
-    warn "depthai-ros apt'te yok. Sim icin gerekli degil; gercek arac icin sonradan kurulacak."
-    warn "Bilgi: https://github.com/luxonis/depthai-ros (manuel build)"
+  if ! apt_install_safe ros-jazzy-depthai-ros-driver; then
+    warn "depthai-ros apt'te yok. Sim icin gerekli degil."
+    warn "Gercek arac icin manuel: https://github.com/luxonis/depthai-ros"
+  fi
+
+  step "Costmap filtreleri (keepout zone icin)"
+  apt_install_safe ros-jazzy-nav2-map-server ros-jazzy-nav2-costmap-2d
+
+  # Eksik paket raporu
+  if (( ${#APT_MISSING[@]} > 0 )); then
+    warn "Apt'te bulunamayan paketler (workspace build sirasinda source'tan derlenebilir):"
+    for p in "${APT_MISSING[@]}"; do echo "  - $p"; done
   fi
 }
 

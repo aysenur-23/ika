@@ -22,6 +22,7 @@ sonra başlar.
 - [Deneme 9 — Safety zinciri ve E-Stop](#deneme-9--safety-zinciri-ve-e-stop)
 - [Deneme 10 — Mission yöneticisi (GPS waypoint)](#deneme-10--mission-yöneticisi)
 - [Deneme 11 — Diagnostics izleme](#deneme-11--diagnostics-i̇zleme)
+- [Deneme 12 — Keepout zone (opsiyonel)](#deneme-12--keepout-zone-opsiyonel)
 - [Genel sorun giderme](#genel-sorun-giderme)
 
 ---
@@ -571,6 +572,38 @@ Filtreleri açıp `topics` modunda incele: tüm topic'lerin yayın/abone ilişki
   sudo apt install ros-jazzy-diagnostic-updater ros-jazzy-diagnostic-msgs
   ```
 - **rqt_robot_monitor açılmıyor** → `sudo apt install ros-jazzy-rqt-robot-monitor`
+
+---
+
+## Deneme 12 — Keepout Zone (Opsiyonel)
+
+**Amaç:** Nav2'nin "yasak alan" maskesini takip etmesi.
+
+> Bu deneme **opsiyoneldir**. Maske dosyası (`keepout_mask.yaml + .pgm`) önce
+> oluşturulmalı. Detaylı talimat: [KEEPOUT.md](KEEPOUT.md).
+
+### Hazırlık
+1. SLAM ile bir harita üret ve kaydet (Deneme 5 sonu).
+2. Haritadan keepout maske dosyaları üret (KEEPOUT.md Bölüm 1).
+3. `navigation.launch.py` içinde `costmap_filter_info_server` ve `filter_mask_server` node'larını aktif et (KEEPOUT.md Bölüm 2).
+4. Workspace'i yeniden build et: `colcon build --symlink-install`
+
+### Test
+```bash
+./scripts/deploy_sim.sh full
+ros2 topic echo /keepout_filter_mask --once
+ros2 topic echo /costmap_filter_info --once
+```
+
+### Beklenen
+- Her iki topic'te de veri yayını var.
+- RViz'de Map display'i `/keepout_filter_mask` topic'ine bağlanınca siyah/beyaz maske görünür.
+- Global costmap'te yasak bölgeler **kırmızı (lethal)** görünür.
+- Nav2 hedefi yasak bölgenin arkasına verirsen yol etrafından dolaşır.
+- Nav2 hedefi yasak bölgenin içine verirsen `Goal rejected` veya plan bulunamaz.
+
+### Başarısızlık
+- KEEPOUT.md "Sorun Giderme" bölümüne bak.
 
 ---
 
