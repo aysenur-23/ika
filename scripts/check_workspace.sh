@@ -23,10 +23,15 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 cd "$ROOT"
 
+# Pi'de python3, Windows'ta python - hangisi varsa
+if command -v python3 >/dev/null 2>&1; then PY=python3
+elif command -v python  >/dev/null 2>&1; then PY=python
+else echo "Python bulunamadi"; exit 1; fi
+
 FAIL=0
 
 step "Python syntax (ast.parse)"
-PYRES=$(python -c "
+PYRES=$($PY -c "
 import ast, sys
 from pathlib import Path
 errs = []
@@ -38,7 +43,7 @@ sys.exit(0 if not errs else (print('\n'.join(errs)) or 1))
 if [[ -z "$PYRES" ]]; then ok "Tum .py temiz"; else err "Python syntax hatasi:"; echo "$PYRES"; FAIL=1; fi
 
 step "YAML + package.xml"
-YRES=$(python -c "
+YRES=$($PY -c "
 import yaml, xml.etree.ElementTree as ET, sys
 from pathlib import Path
 errs = []
@@ -53,7 +58,7 @@ sys.exit(0 if not errs else (print('\n'.join(errs)) or 1))
 if [[ -z "$YRES" ]]; then ok "Tum yaml/xml temiz"; else err "$YRES"; FAIL=1; fi
 
 step "Xacro + SDF XML"
-XRES=$(python -c "
+XRES=$($PY -c "
 import xml.etree.ElementTree as ET, sys
 from pathlib import Path
 errs = []
@@ -75,7 +80,7 @@ done
 
 step "Birim testler (python -m pytest)"
 for pkg in ika_terrain ika_safety ika_base_controller; do
-  if (cd "ika_ws/src/$pkg" && python -m pytest test/ -q 2>&1 | tail -2 | head -1); then
+  if (cd "ika_ws/src/$pkg" && $PY -m pytest test/ -q 2>&1 | tail -2 | head -1); then
     ok "$pkg"
   else
     err "$pkg testleri basarisiz"; FAIL=1

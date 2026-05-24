@@ -185,19 +185,29 @@ global_costmap:
           raytrace_max_range: 4.0
           obstacle_max_range: 3.5
 
+      # terrain_layer: ika_terrain node'unun /terrain_obstacles yayinini
+      # ikinci bir StaticLayer olarak global costmap'e ekler.
+      # NOT: nav2_costmap_2d::CostmapLayer base class - dogrudan
+      # kullanilamaz. StaticLayer ile /terrain_obstacles topic'i tuketilir.
       terrain_layer:
-        plugin: "nav2_costmap_2d::CostmapLayer"
+        plugin: "nav2_costmap_2d::StaticLayer"
         enabled: true
-        topic: /terrain_obstacles
+        map_topic: /terrain_obstacles
+        map_subscribe_transient_local: false
+        subscribe_to_updates: false
+        transform_tolerance: 0.5
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         inflation_radius: 0.45
 
+      # KeepoutFilter VARSAYILAN OLARAK KAPALI - aktiflestirmek icin
+      # KEEPOUT.md rehberini takip edin (mask dosyasi + filter_info_server
+      # node'unu launch icine ekleyin, sonra burada enabled: true yapin).
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
-        enabled: true
+        enabled: false
         filter_info_topic: "/costmap_filter_info"
 
 # Keepout zone icin gereken yardimci node'lar.
@@ -264,9 +274,12 @@ local_costmap:
           obstacle_max_range: 2.5
 
       terrain_layer:
-        plugin: "nav2_costmap_2d::CostmapLayer"
-        topic: /terrain_obstacles
+        plugin: "nav2_costmap_2d::StaticLayer"
         enabled: true
+        map_topic: /terrain_obstacles
+        map_subscribe_transient_local: false
+        subscribe_to_updates: false
+        transform_tolerance: 0.5
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"

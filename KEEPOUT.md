@@ -53,9 +53,28 @@ Sonra `keepout_mask.yaml` yaz (yukarıdaki şablon).
 
 ## 2. Etkinleştirme
 
-`navigation.launch.py` içinde yorum satırlarını aç:
+### 2.1 nav2_params.yaml — keepout_filter aktif et
+
+```yaml
+# nav2_params.yaml -> global_costmap -> keepout_filter:
+keepout_filter:
+  plugin: "nav2_costmap_2d::KeepoutFilter"
+  enabled: true                  # false -> true
+  filter_info_topic: "/costmap_filter_info"
+```
+
+### 2.2 navigation.launch.py — yardımcı node'lar ekle
 
 ```python
+from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import PathJoinSubstitution
+
+mask_yaml = PathJoinSubstitution([
+    FindPackageShare('ika_navigation'), 'maps', 'keepout_mask.yaml'
+])
+
+# ... LaunchDescription icinde:
+
 # Costmap filter info server
 Node(
     package='nav2_map_server',
@@ -64,7 +83,7 @@ Node(
     output='screen',
     parameters=[nav2_yaml, {'use_sim_time': use_sim_time}],
 ),
-# Filter mask server
+# Filter mask server (map_server'in 2. instance'i)
 Node(
     package='nav2_map_server',
     executable='map_server',
@@ -72,13 +91,14 @@ Node(
     output='screen',
     parameters=[
         nav2_yaml,
-        {'use_sim_time': use_sim_time,
-         'yaml_filename': '/home/ubuntu/ika/ika_ws/src/ika_navigation/maps/keepout_mask.yaml'},
+        {'use_sim_time': use_sim_time, 'yaml_filename': mask_yaml},
     ],
 ),
 ```
 
-Ve `lifecycle_manager_navigation` node listesine bu ikisini ekle:
+> `maps/` dizini `ika_navigation/CMakeLists.txt` ile `share/` altına install ediliyor. Maskeni o klasöre koy ve build et.
+
+### 2.3 lifecycle_manager_navigation listesine ekle
 ```python
 nav2_lifecycle_nodes = [
     'controller_server',

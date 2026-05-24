@@ -191,19 +191,13 @@ class TerrainPerceptionNode(LifecycleNode):
             confidence_threshold=float(self.get_parameter('terrain_confidence_threshold').value),
         )
 
-        # IMU pitch ile basit tutarlilik kontrolu - aracin gercekten egimde
-        # oldugunu kamera goruyorsa, IMU da onaylamali. Aksi durumda CAUTION'a dus.
-        if report.classification in ('SAFE', 'CAUTION') and self.latest_imu is not None:
-            imu_pitch_deg = self._imu_pitch_deg()
-            cam_slope = report.slope_deg
-            mismatch = abs(imu_pitch_deg - cam_slope)
-            if mismatch > 15.0 and report.classification == 'SAFE':
-                report = TerrainReport(
-                    classification='CAUTION', slope_deg=report.slope_deg,
-                    dropoff_risk=report.dropoff_risk,
-                    max_step_height_m=report.max_step_height_m,
-                    confidence=report.confidence * 0.7,
-                )
+        # NOT: Eski versiyonda burada IMU pitch ile basit bir tutarlilik
+        # kontrolu vardi (kamera ile gövde egimini karsilastiran). Ancak:
+        #  - Kamera onumuzdeki zemini olcer, IMU aracin GOVDESINI olcer.
+        #  - Robot rampaya yaklasirken IMU=0 ama kamera>0 olur (dogru).
+        #  - Robot rampada IMU>0 ama kamera ileriyi flat gorebilir (dogru).
+        # Bu nedenle naif aci karsilastirmasi CAUTION'a yanlis dusurur.
+        # Gercek fuzyon ileride EKF cikti pose'u + kamera plane'iyle yapilacak.
 
         self._last_depth_time = self.get_clock().now()
         self._last_report = report
@@ -221,15 +215,23 @@ class TerrainPerceptionNode(LifecycleNode):
 
     # ---- helper'lar ----------------------------------------------------
     def _decode_depth(self, msg: Image) -> Optional[np.ndarray]:
-        if msg.encoding not in ('16UC1', 'mono16'):
+        """Depth goruntusu decode et. Hem 16UC1 (mm, OAK-D Lite ham)
+        hem de 32FC1 (m, Gazebo rgbd_camera) destekler."""
+        try:
+            if msg.encoding in ('16UC1', 'mono16'):
+                raw = np.frombuffer(msg.data, dtype=np.uint16)
+                return raw.reshape(msg.height, msg.width).astype(np.float32) / 1000.0
+            if msg.encoding in ('32FC1', '32fc1'):
+                raw = np.frombuffer(msg.data, dtype=np.float32)
+                # Gazebo bazen NaN/inf yayar - 0 yap
+                arr = raw.reshape(msg.height, msg.width)
+                return np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
             self.get_logger().warn(
-                f'Beklenmedik depth encoding: {msg.encoding} (16UC1 bekleniyor)',
+                f'Desteklenmeyen depth encoding: {msg.encoding} '
+                '(16UC1 veya 32FC1 bekleniyor)',
                 throttle_duration_sec=5.0,
             )
             return None
-        try:
-            raw = np.frombuffer(msg.data, dtype=np.uint16)
-            return raw.reshape(msg.height, msg.width).astype(np.float32) / 1000.0
         except Exception as exc:
             self.get_logger().error(f'Depth decode hatasi: {exc}')
             return None
