@@ -18,15 +18,14 @@
 2. [Donanım](#2-donanım)
 3. [Yazılım Mimarisi](#3-yazılım-mimarisi)
 4. [Repo Yapısı](#4-repo-yapısı)
-5. [Hızlı Başlangıç](#5-hızlı-başlangıç)
-6. [Detaylı Kurulum (sıfırdan Pi)](#6-detaylı-kurulum)
-7. [Simülasyonu Çalıştırma](#7-simülasyonu-çalıştırma)
-8. [Gerçek Araçta Çalıştırma](#8-gerçek-araçta-çalıştırma)
-9. [Test Senaryoları](#9-test-senaryoları)
-10. [Geliştirici Komutları](#10-geliştirici-komutları)
-11. [Sorun Giderme](#11-sorun-giderme)
-12. [Daha Fazla Doküman](#12-daha-fazla-doküman)
-13. [Lisans + Katkı](#13-lisans-katkı)
+5. [**Kurulum — 5 Adımda Pi'yi Hazırla**](#5-kurulum--5-adımda-piyi-hazırla)
+6. [Simülasyonu Çalıştırma](#6-simülasyonu-çalıştırma)
+7. [Gerçek Araçta Çalıştırma](#7-gerçek-araçta-çalıştırma)
+8. [Test Senaryoları](#8-test-senaryoları)
+9. [Geliştirici Komutları](#9-geliştirici-komutları)
+10. [Sorun Giderme](#10-sorun-giderme)
+11. [Daha Fazla Doküman](#11-daha-fazla-doküman)
+12. [Lisans + Katkı](#12-lisans-katkı)
 
 ---
 
@@ -234,181 +233,102 @@ ika/
 
 ---
 
-## 5. Hızlı Başlangıç
+## 5. Kurulum — 5 Adımda Pi'yi Hazırla
 
-> Bu bölüm **bilgisi olanlar için kısa yol.** İlk kez kuruyorsan [Bölüm 6](#6-detaylı-kurulum)'a geç.
+> **Önkoşul:** Raspberry Pi 5 (16 GB), Ubuntu Server 24.04.4 **yeni kurulmuş**, internet bağlantısı var, 32 GB+ boş disk. İlk açılışta `ubuntu` kullanıcısı + parolayı değiştirmiş olmalısın.
+>
+> Manuel adım adım kurulum istiyorsan (her komutu kendin yazmak için) → [KURULUM.md](KURULUM.md). Aşağıdaki **otomatik akış** çoğu durum için yeterlidir.
 
-```bash
-# Pi'de (Ubuntu 24.04 fresh):
-sudo apt update && sudo apt install -y git
-git clone https://github.com/aysenur-23/ika.git ~/ika
-cd ~/ika
-chmod +x scripts/*.sh
+### Adım 1 — Pi'ye bağlan
 
-# Sıfırdan kur (~30-40 dk)
-./scripts/install_pi.sh
+Pi'nin **fiziksel ekranında** çalışıyorsan: doğrudan terminali aç, sonraki adıma geç.
 
-# Grupları aktive et
-exit && ssh ubuntu@<PI_IP>    # veya yeni terminal aç
-cd ~/ika
+**Uzaktan SSH ile çalışacaksan** (önerilir), Pi tarafında bir kere şunları yap:
 
-# İlk sim denemesi
-./scripts/deploy_sim.sh
-
-# Tam stack sim (Nav2 + safety + terrain)
-./scripts/deploy_sim.sh full
-
-# Durdur
-./scripts/stop_sim.sh
-```
-
----
-
-## 6. Detaylı Kurulum
-
-### 6.1 Ön Koşullar
-
-- Raspberry Pi 5 (16 GB RAM önerilir)
-- Boş **32 GB+** SD/NVMe disk (NVMe HAT öneririm — SD yavaş)
-- Ubuntu Server 24.04.4 LTS (64-bit) **yeni kurulmuş**
-- İnternet bağlantısı (Ethernet veya WiFi)
-- Bir başka bilgisayardan SSH erişimi (opsiyonel ama önerilir)
-
-### 6.2 İlk açılış (Pi'de)
-
-İlk girişte `ubuntu` kullanıcı + `ubuntu` parola (parolayı değiştirmeni ister).
-
-**WiFi (gerekirse):**
-```bash
-sudo nmcli device wifi connect "WIFI_ADI" password "PAROLA"
-ip -4 addr show | grep inet     # IP'yi öğren
-```
-
-**SSH (önerilir):**
 ```bash
 sudo apt update
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
+ip -4 addr show | grep inet       # Pi'nin IP'sini öğren
 ```
 
-Artık `ssh ubuntu@<PI_IP>` ile uzaktan bağlanabilirsin.
-
-**Saat dilimi:**
+Sonra başka bir bilgisayardan:
 ```bash
-sudo timedatectl set-timezone Europe/Istanbul
+ssh ubuntu@<PI_IP>
 ```
 
-**Locale (ROS 2 için kritik):**
-```bash
-sudo apt install -y locales
-sudo locale-gen en_US.UTF-8
-sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-export LANG=en_US.UTF-8
-```
-
-### 6.3 Repo'yu klonla
+### Adım 2 — Repo'yu Pi'ye klonla
 
 ```bash
+sudo apt update
 sudo apt install -y git
-cd ~
-git clone https://github.com/aysenur-23/ika.git
-cd ika
-ls          # README.md, KURULUM.md, ika_ws/, scripts/, ...
+git clone https://github.com/aysenur-23/ika.git ~/ika
+cd ~/ika
 ```
 
-### 6.4 Otomatik kurulum
+### Adım 3 — Tek komutla kur (~30-40 dakika)
 
 ```bash
 chmod +x scripts/*.sh
 ./scripts/install_pi.sh
 ```
 
-Bu script 7 fazda her şeyi sırayla kurar:
+Script şunları sırayla yapar (her birini sırayla logladı):
 
-| Faz | Ne yapar |
-|---|---|
-| 1. system | apt update, temel araçlar (git, curl, vim, htop), locale, kullanıcı grupları (dialout, plugdev, video) |
-| 2. ros | ROS 2 Jazzy apt anahtarı + deposu, `ros-jazzy-desktop`, `ros-dev-tools` |
-| 3. packages | Nav2, SLAM, robot_localization, rf2o, Gazebo Harmonic, xacro, teleop, diagnostics, rqt. Apt'te olmayan paketler `ika_ws/src/third_party/` altına git clone'lanır |
-| 4. python | python3-serial, python3-yaml, python3-numpy, python3-pytest |
-| 5. udev | `/etc/udev/rules.d/99-ika-usb.rules` — lidar, arduino, GPS için sembolik link |
-| 6. build | `colcon build --symlink-install --parallel-workers $(nproc)` |
-| 7. verify | `ros2 doctor`, paket listesi, birim testler |
+1. Sistem güncelleme + locale (UTF-8) + temel araçlar
+2. ROS 2 Jazzy + Gazebo Harmonic
+3. Nav2, SLAM, robot_localization, rf2o, xacro, teleop, diagnostics (apt'te yoksa source'tan clone)
+4. Python paketleri (serial, yaml, numpy, pytest)
+5. udev kuralları (lidar, Arduino, GPS sembolik link)
+6. Workspace build (`colcon`, tüm CPU paralel)
+7. Doğrulama (`ros2 doctor` + paket listesi + birim testler)
 
-**İlk koşumda sudo parolası ister**, sonrasında 60s'de bir refresh eder — beklemen gerekmez.
+Başlangıçta **bir kere `sudo` parolası** ister, sonrasında dokunmana gerek yok. İdempotent — kesilip tekrar başlatabilirsin.
 
-**Tek faz çalıştırma:**
-```bash
-./scripts/install_pi.sh system     # sadece sistem
-./scripts/install_pi.sh ros        # sadece ROS 2
-./scripts/install_pi.sh packages   # sadece ROS paketleri
-./scripts/install_pi.sh build      # sadece workspace build
-./scripts/install_pi.sh verify     # sadece doğrulama
-```
+### Adım 4 — Grupları aktive et (**ATLAMA**)
 
-Script idempotent — kurulu paketleri atlar, sorunsuz tekrar çalışır.
-
-### 6.5 Grupları aktive et (ÇOK ÖNEMLİ)
-
-`install_pi.sh` seni `dialout`, `plugdev`, `video` gruplarına ekler ama **mevcut oturumda aktif olmazlar.** Logout + login gerek:
+Script seni `dialout`, `plugdev`, `video` gruplarına ekler ama bu **mevcut oturumda aktif olmaz.** Yeni bir oturum aç:
 
 ```bash
-exit                          # SSH oturumunu kapat
-ssh ubuntu@<PI_IP>            # tekrar bağlan
-
-groups                        # 'dialout' görmelisin
+exit                              # SSH ise oturumu kapat
+ssh ubuntu@<PI_IP>                # tekrar bağlan
+groups | grep dialout             # 'dialout' görmelisin
 ```
 
-### 6.6 ~/.bashrc kontrolü
+> Pi'nin ekranındaysan: terminali kapat, yeni bir terminal aç.
 
-`install_pi.sh` aşağıdaki iki satırı `~/.bashrc`'a ekledi — kontrol et:
-```bash
-grep -E "ros/jazzy|ika_ws/install" ~/.bashrc
-```
-
-Beklenen çıktı:
-```
-source /opt/ros/jazzy/setup.bash
-source /home/ubuntu/ika/ika_ws/install/setup.bash
-```
-
-Yoksa elle ekle:
-```bash
-echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
-echo "source $HOME/ika/ika_ws/install/setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 6.7 Donanım hazırlığı (USB cihazlar takılıysa)
-
-Lidar, Arduino, GPS taktıysan udev kuralları sembolik link oluşturur:
-```bash
-ls -l /dev/ika_*
-# Beklenen:
-# /dev/ika_lidar   -> ttyUSB0
-# /dev/ika_arduino -> ttyACM0
-# /dev/ika_gps     -> ttyUSB1
-```
-
-Görünmüyorsa **VID:PID'ler farklı olabilir.** `lsusb` ile öğren, `/etc/udev/rules.d/99-ika-usb.rules` dosyasını güncelle, `sudo udevadm control --reload-rules && sudo udevadm trigger`.
-
-### 6.8 Doğrulama
+### Adım 5 — Doğrula ve ilk sim'i çalıştır
 
 ```bash
-./scripts/install_pi.sh verify
+cd ~/ika
+./scripts/install_pi.sh verify    # her şey yeşil mi?
+./scripts/deploy_sim.sh           # ilk sim - Gazebo açılır
 ```
 
-Beklenen:
+**Doğrulama beklentisi:**
 - `[OK] ros2 cli`
 - `[OK] gz cli (8.x.x)` ← Gazebo Harmonic
 - `[OK] ros2 pkg: ika_bringup` (×8)
-- Birim testler 22/22
+- Birim testler **22/22**
 
-Kırmızı `[!!]` çıkarsa [Bölüm 11](#11-sorun-giderme) → Sorun Giderme.
+**Sim beklentisi:**
+- Gazebo penceresi açılır (Pi'nin ekranında)
+- Araç dünyaya spawn olur
+- `ros2 topic hz /scan` → ~10 Hz
+
+`[!!]` kırmızı satır görürsen → [Bölüm 10 Sorun Giderme](#10-sorun-giderme).
+
+### Sonraki
+
+Sim çalıştıysa:
+- Sürüş denemek için → `./scripts/teleop_raw.sh`
+- Nav2 + safety + terrain ile tam stack → `./scripts/deploy_sim.sh full`
+- Durdur → `./scripts/stop_sim.sh`
+- Sistematik test → [DENEMELER.md](DENEMELER.md) (12 senaryo, sırayla)
 
 ---
 
-## 7. Simülasyonu Çalıştırma
+## 6. Simülasyonu Çalıştırma
 
 ### 7.1 Bare sim (sadece Gazebo + URDF)
 
@@ -487,7 +407,7 @@ Process group + yetim `gz`/`rviz` süreçlerini temizler. ROS daemon'u da yenile
 
 ---
 
-## 8. Gerçek Araçta Çalıştırma
+## 7. Gerçek Araçta Çalıştırma
 
 > ⚠️ **Önce simülasyonda tüm test senaryoları geçmeli.** Gerçek araçta encoder yokluğu nedeniyle maksimum hız 0.25 m/s ile sınırlandırılmıştır.
 
@@ -546,7 +466,7 @@ Detay: [IKA_ROS2_System_Reference.md](IKA_ROS2_System_Reference.md) §16.
 
 ---
 
-## 9. Test Senaryoları
+## 8. Test Senaryoları
 
 12 deneme — detayı [DENEMELER.md](DENEMELER.md):
 
@@ -575,7 +495,7 @@ Sırayla yap — bir öncekinin sonucu sonrakini test edebilmen için gerekli.
 
 ---
 
-## 10. Geliştirici Komutları
+## 9. Geliştirici Komutları
 
 ### Workspace build
 
@@ -664,7 +584,7 @@ git pull
 
 ---
 
-## 11. Sorun Giderme
+## 10. Sorun Giderme
 
 ### Build hataları
 
@@ -724,7 +644,7 @@ Daha fazlası: [KURULUM.md](KURULUM.md) §10, [DENEMELER.md](DENEMELER.md) Genel
 
 ---
 
-## 12. Daha Fazla Doküman
+## 11. Daha Fazla Doküman
 
 | Dosya | İçerik |
 |---|---|
@@ -736,7 +656,7 @@ Daha fazlası: [KURULUM.md](KURULUM.md) §10, [DENEMELER.md](DENEMELER.md) Genel
 
 ---
 
-## 13. Lisans + Katkı
+## 12. Lisans + Katkı
 
 Apache-2.0 — bkz. [LICENSE](LICENSE).
 
