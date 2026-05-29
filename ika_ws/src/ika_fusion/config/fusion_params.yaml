@@ -1,0 +1,24 @@
+hazard_fusion:
+  ros__parameters:
+    # Terrain (RANSAC) -> aksiyon esleme (ika_terrain ile uyumlu siniflar)
+    terrain_stop_classes: ['DROPOFF_DANGER', 'IMPASSABLE']
+    terrain_slow_classes: ['CAUTION', 'UNKNOWN']
+
+    # Dinamik nesne menzil esikleri (base_link XY mesafesi)
+    dynamic_stop_range_m: 0.8
+    dynamic_slow_range_m: 2.0
+
+    # /detection_obstacles grid
+    grid_resolution: 0.05
+    grid_size_cells: 80          # 80*0.05 = 4 m kenarli, base_link merkezli
+    obstacle_radius_m: 0.15
+    dynamic_cost: 100
+    static_cost: 100
+    detection_decay_time_s: 1.0  # tespit bu sureden eski ise grid temizlenir
+
+    publish_rate_hz: 10.0
+    frame_id: base_link
+    terrain_state_topic: /terrain_state
+    detections_topic: /detected_objects
+    hazard_state_topic: /hazard_state
+    detection_grid_topic: /detection_obstacles

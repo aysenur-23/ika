@@ -10,9 +10,9 @@ safety_supervisor:
     slowdown_zone_distance_m: 0.55
     slowdown_speed_factor: 0.3
 
-    # Terrain entegrasyonu
-    terrain_stop_classes: ["DROPOFF_DANGER", "IMPASSABLE"]
-    terrain_slow_classes: ["CAUTION", "UNKNOWN"]
+    # Hazard fuzyon entegrasyonu: terrain + DL dinamik nesne karari ika_fusion
+    # node'unda birlestirilip /hazard_state ile (CLEAR/SLOW/STOP) gelir.
+    hazard_state_topic: /hazard_state
 
     # Topic'ler - sim/real arasinda kolay degisim
     cmd_vel_in_topic: /cmd_vel_collision

@@ -1,37 +1,29 @@
-"""Safety Supervisor mantik testleri.
+"""Safety Supervisor karar mantigi testleri.
 
-Pure-fonksiyon olarak ayristirilmis filtreleme/karar mantigi olmadigi icin
-bu modul ROS spin etmeden sadece terrain class -> aksiyon esleme tablosunu
-test eder. Daha derin mantik integrasyon testlerine birakildi.
+Karar mantigi artik safety_logic.decide_action'da saf fonksiyon olarak yasiyor;
+bu test o GERCEK fonksiyonu cagirir (eskiden mantigin kopyasi test ediliyordu).
+Terrain + dinamik nesne fuzyonu ika_fusion/test_hazard_fusion.py'de test edilir.
 """
 import pytest
 
-
-# Bu tablo SafetySupervisorNode._on_cmd_vel icindeki davranisla ayni olmali.
-EXPECTED_ACTION = {
-    'DROPOFF_DANGER': 'stop',
-    'IMPASSABLE': 'stop',
-    'CAUTION': 'slow',
-    'UNKNOWN': 'slow',
-    'SAFE': 'pass',
-}
+from ika_safety.safety_logic import decide_action
 
 
-def classify_action(terrain_class: str,
-                    stop_classes=('DROPOFF_DANGER', 'IMPASSABLE'),
-                    slow_classes=('CAUTION', 'UNKNOWN')) -> str:
-    """SafetySupervisorNode._on_cmd_vel'deki filtreleme mantiginin saf kopyasi."""
-    if terrain_class in stop_classes:
-        return 'stop'
-    if terrain_class in slow_classes:
-        return 'slow'
-    return 'pass'
+@pytest.mark.parametrize('hazard,expected', [
+    ('CLEAR', 'pass'),
+    ('SLOW', 'slow'),
+    ('STOP', 'stop'),
+])
+def test_action_maps_hazard(hazard, expected):
+    assert decide_action(hazard, e_stop_active=False) == expected
 
 
-@pytest.mark.parametrize('cls,action', EXPECTED_ACTION.items())
-def test_classify_action(cls, action):
-    assert classify_action(cls) == action
+def test_estop_overrides_everything():
+    for hazard in ('CLEAR', 'SLOW', 'STOP'):
+        assert decide_action(hazard, e_stop_active=True) == 'stop'
 
 
-def test_unknown_class_defaults_to_pass():
-    assert classify_action('SOMETHING_ELSE') == 'pass'
+def test_unknown_hazard_is_failsafe_stop():
+    # Bozuk/eksik aksiyon guvenli tarafta DUR vermeli
+    assert decide_action('GARBAGE', e_stop_active=False) == 'stop'
+    assert decide_action('', e_stop_active=False) == 'stop'

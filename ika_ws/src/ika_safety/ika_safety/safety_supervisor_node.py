@@ -4,10 +4,14 @@ Lifecycle node. Tum guvenlik kararlarini merkezi olarak verir:
 
   /cmd_vel_collision  ----+
                           |  filtre  ->  /cmd_vel_safe
-  /terrain_state      ----+
+  /hazard_state       ----+   (ika_fusion: terrain + dinamik nesne birlesik)
   /scan, /depth, /imu --> sensor watchdog -> /e_stop
 
   /safety_status       JSON statu yayini (diagnostics + RViz icin)
+
+Terrain + DL dinamik nesne fuzyonu ika_fusion node'unda yapilir; buraya tek
+bir aksiyon (CLEAR/SLOW/STOP) olarak /hazard_state ile gelir. Karar mantigi
+safety_logic.decide_action'da (ROS'suz, test edilebilir).
 """
 import json
 
@@ -16,6 +20,8 @@ from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Imu, LaserScan, Image
 from std_msgs.msg import Bool, String
+
+from ika_safety.safety_logic import decide_action
 
 try:
     from diagnostic_updater import Updater
@@ -33,7 +39,7 @@ class SafetySupervisorNode(LifecycleNode):
         self._declare_params()
 
         self._cmd_vel_sub = None
-        self._terrain_sub = None
+        self._hazard_sub = None
         self._scan_sub = None
         self._depth_sub = None
         self._imu_sub = None
@@ -49,10 +55,7 @@ class SafetySupervisorNode(LifecycleNode):
         self.declare_parameter('stop_zone_distance_m', 0.25)
         self.declare_parameter('slowdown_zone_distance_m', 0.55)
         self.declare_parameter('slowdown_speed_factor', 0.3)
-        self.declare_parameter('terrain_stop_classes',
-                               ['DROPOFF_DANGER', 'IMPASSABLE'])
-        self.declare_parameter('terrain_slow_classes',
-                               ['CAUTION', 'UNKNOWN'])
+        self.declare_parameter('hazard_state_topic', '/hazard_state')
         self.declare_parameter('cmd_vel_in_topic', '/cmd_vel_collision')
         self.declare_parameter('cmd_vel_out_topic', '/cmd_vel_safe')
         self.declare_parameter('scan_topic', '/scan')
@@ -71,10 +74,12 @@ class SafetySupervisorNode(LifecycleNode):
         depth_topic = self.get_parameter('depth_topic').value
         imu_topic = self.get_parameter('imu_topic').value
 
+        hazard_topic = self.get_parameter('hazard_state_topic').value
+
         self._cmd_vel_sub = self.create_subscription(
             Twist, in_topic, self._on_cmd_vel, 10)
-        self._terrain_sub = self.create_subscription(
-            String, '/terrain_state', self._on_terrain, 10)
+        self._hazard_sub = self.create_subscription(
+            String, hazard_topic, self._on_hazard, 10)
         self._scan_sub = self.create_subscription(
             LaserScan, scan_topic, self._on_scan, 10)
         self._depth_sub = self.create_subscription(
@@ -87,7 +92,9 @@ class SafetySupervisorNode(LifecycleNode):
         self._status_pub = self.create_publisher(String, '/safety_status', 10)
 
         now = self.get_clock().now()
-        self.terrain_class = 'UNKNOWN'
+        # Fuzyon ilk mesaji gelene kadar temkinli baslangic (yavasla).
+        self.hazard_action = 'SLOW'
+        self.hazard_detail = {}
         self.last_scan_time = now
         self.last_depth_time = now
         self.last_imu_time = now
@@ -102,7 +109,7 @@ class SafetySupervisorNode(LifecycleNode):
             self._updater = Updater(self)
             self._updater.setHardwareID('ika_safety_supervisor')
             self._updater.add('Sensor watchdog', self._diag_sensors)
-            self._updater.add('Terrain durumu', self._diag_terrain)
+            self._updater.add('Hazard durumu', self._diag_hazard)
             self.create_timer(1.0, lambda: self._updater.update())
 
         return TransitionCallbackReturn.SUCCESS
@@ -115,12 +122,16 @@ class SafetySupervisorNode(LifecycleNode):
         return super().on_deactivate(state)
 
     # ---- veri callback'leri -------------------------------------------
-    def _on_terrain(self, msg: String):
+    def _on_hazard(self, msg: String):
         try:
             data = json.loads(msg.data)
-            self.terrain_class = data.get('class', 'UNKNOWN')
+            action = data.get('action', 'STOP')
+            self.hazard_action = action if action in ('CLEAR', 'SLOW', 'STOP') else 'STOP'
+            self.hazard_detail = data
         except json.JSONDecodeError:
-            self.terrain_class = 'UNKNOWN'
+            # Bozuk mesaj -> guvenli taraf
+            self.hazard_action = 'STOP'
+            self.hazard_detail = {}
 
     def _on_scan(self, _msg: LaserScan):
         self.last_scan_time = self.get_clock().now()
@@ -135,20 +146,19 @@ class SafetySupervisorNode(LifecycleNode):
     def _on_cmd_vel(self, msg: Twist):
         if self._cmd_vel_pub is None:
             return
-        if self.e_stop_active:
+
+        action = decide_action(self.hazard_action, self.e_stop_active)
+
+        if action == 'stop':
             self._publish_stop()
+            if not self.e_stop_active:
+                reasons = self.hazard_detail.get('reasons', [])
+                why = ';'.join(reasons) if reasons else self.hazard_action
+                self.get_logger().warn(
+                    f'Hazard DUR: {why}', throttle_duration_sec=1.0)
             return
 
-        stop_classes = list(self.get_parameter('terrain_stop_classes').value)
-        slow_classes = list(self.get_parameter('terrain_slow_classes').value)
-
-        if self.terrain_class in stop_classes:
-            self._publish_stop()
-            self.get_logger().warn(
-                f'Terrain DUR: {self.terrain_class}', throttle_duration_sec=1.0)
-            return
-
-        if self.terrain_class in slow_classes:
+        if action == 'slow':
             factor = float(self.get_parameter('slowdown_speed_factor').value)
             filtered = Twist()
             filtered.linear.x = msg.linear.x * factor
@@ -190,7 +200,8 @@ class SafetySupervisorNode(LifecycleNode):
         status = String()
         status.data = json.dumps({
             'e_stop': self.e_stop_active,
-            'terrain_class': self.terrain_class,
+            'hazard_action': self.hazard_action,
+            'hazard_sources': self.hazard_detail.get('sources', []),
             'lidar_ok': lidar_ok,
             'depth_ok': depth_ok,
             'imu_ok': imu_ok,
@@ -235,17 +246,19 @@ class SafetySupervisorNode(LifecycleNode):
         stat.add('e_stop', str(self.e_stop_active))
         return stat
 
-    def _diag_terrain(self, stat):
-        cls = self.terrain_class
-        stop_classes = list(self.get_parameter('terrain_stop_classes').value)
-        slow_classes = list(self.get_parameter('terrain_slow_classes').value)
-        if cls in stop_classes:
-            stat.summary(DiagnosticStatus.ERROR, f'Terrain DUR: {cls}')
-        elif cls in slow_classes:
-            stat.summary(DiagnosticStatus.WARN, f'Terrain yavasla: {cls}')
+    def _diag_hazard(self, stat):
+        action = self.hazard_action
+        detail = self.hazard_detail
+        if action == 'STOP':
+            stat.summary(DiagnosticStatus.ERROR, f'Hazard DUR: {action}')
+        elif action == 'SLOW':
+            stat.summary(DiagnosticStatus.WARN, f'Hazard yavasla: {action}')
         else:
-            stat.summary(DiagnosticStatus.OK, f'Terrain: {cls}')
-        stat.add('class', cls)
+            stat.summary(DiagnosticStatus.OK, f'Hazard: {action}')
+        stat.add('action', action)
+        stat.add('terrain_class', str(detail.get('terrain_class', '?')))
+        stat.add('dynamic_count', str(detail.get('dynamic_count', 0)))
+        stat.add('reasons', ';'.join(detail.get('reasons', [])))
         return stat
 
 

@@ -1,0 +1,88 @@
+dl_perception:
+  ros__parameters:
+    # --- Model ---
+    # mobilenet | yolo. Varsayilan: depthai mobilenet-ssd (VOC 20 sinif).
+    model_type: mobilenet
+    # Blob yolu Pi'de doldurulmali (orn. blobconverter ile indirilen .blob).
+    # Bos birakilirsa node aktive olunca OAK-D baslatma hatasi verir.
+    model_blob_path: ""
+    nn_input_width: 300
+    nn_input_height: 300
+    confidence_threshold: 0.5
+    bounding_box_scale_factor: 0.5
+    depth_lower_threshold_mm: 200
+    depth_upper_threshold_mm: 6000
+
+    # --- YOLO'ya ozel (model_type=yolo iken) ---
+    yolo_num_classes: 80
+    yolo_coordinate_size: 4
+    yolo_iou_threshold: 0.5
+    # Anchor/mask karmasik modellerde model JSON'undan doldurulur.
+    yolo_anchors: [0.0]
+    yolo_anchor_mask_keys: [""]
+    yolo_anchor_mask_vals: [0]
+
+    # --- Label -> hazard ---
+    # MobileNet-SSD VOC sira: index 0 = background.
+    label_names:
+      - background
+      - aeroplane
+      - bicycle
+      - bird
+      - boat
+      - bottle
+      - bus
+      - car
+      - cat
+      - chair
+      - cow
+      - diningtable
+      - dog
+      - horse
+      - motorbike
+      - person
+      - pottedplant
+      - sheep
+      - sofa
+      - train
+      - tvmonitor
+    # Hareketli/canli nesneler -> dinamik engel (safety supervisor durdurur).
+    dynamic_labels:
+      - person
+      - bicycle
+      - car
+      - bus
+      - motorbike
+      - dog
+      - cat
+      - horse
+      - cow
+      - sheep
+      - bird
+    # Sabit ama costmap'e basilacak nesneler.
+    static_labels:
+      - chair
+      - sofa
+      - diningtable
+      - pottedplant
+      - bottle
+      - tvmonitor
+    ignore_labels:
+      - background
+    # Listede olmayan label'in varsayilan sinifi.
+    default_hazard: STATIC
+
+    # --- Filtre / menzil ---
+    min_range_m: 0.2
+    max_range_m: 6.0
+
+    # --- Kamera montaji (URDF + ika_terrain ile uyumlu) ---
+    camera_pitch: 0.15
+    camera_x: 0.10
+    camera_z: 0.15
+
+    # --- Yayim ---
+    poll_rate_hz: 15.0
+    frame_id: base_link
+    detections_topic: /detected_objects
+    state_topic: /detection_state

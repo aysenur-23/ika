@@ -1,0 +1,14 @@
+planner_metrics_recorder:
+  ros__parameters:
+    odom_topic: /odometry/filtered
+    goal_topic: /goal_pose
+    # Kosum kayitlari buraya eklenir (planner sutunu DWB/MPPI ayirir).
+    output_csv: planner_comparison.csv
+    # Her kosumdan once degistir: 'dwb' veya 'mppi' (local_planner ile ayni).
+    planner_label: dwb
+    goal_tolerance_m: 0.25
+    # Sim dunyasindaki bilinen engel konumlari (odom/map frame), [x1,y1,x2,y2,...]
+    # Varsayilan: test_world.sdf'teki uc statik kutu (clearance olcumu icin).
+    # Bos/tek eleman -> clearance hesaplanmaz (inf).
+    obstacles: [3.0, 1.0, 4.5, -1.5, 6.0, 0.5]
+    run_timeout_s: 120.0

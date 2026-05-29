@@ -187,8 +187,10 @@ phase_packages() {
 
   step "Nav2 + SLAM + lokalizasyon (core)"
   # ros-jazzy-navigation2 metapaketi Jazzy'de YOK - nav2-bringup yeterli
+  # nav2-mppi-controller: DWB'ye alternatif MPPI yerel planlayici (tez karsilastirmasi)
   apt_install_safe \
     ros-jazzy-nav2-bringup \
+    ros-jazzy-nav2-mppi-controller \
     ros-jazzy-slam-toolbox \
     ros-jazzy-robot-localization
 
@@ -237,11 +239,18 @@ phase_packages() {
     clone_into_workspace https://github.com/Slamtec/sllidar_ros2.git sllidar_ros2
   fi
 
+  step "Algilama mesajlari (vision_msgs) - DL tespit + fuzyon icin zorunlu"
+  # ika_perception_dl /detected_objects (Detection3DArray) yayar, ika_fusion tuketir.
+  apt_install_safe ros-jazzy-vision-msgs
+
   step "Depth kamera surucusu (OAK-D Lite / depthai)"
   if ! apt_install_safe ros-jazzy-depthai-ros-driver; then
     warn "depthai-ros apt'te yok. Sim icin gerekli degil."
     warn "Gercek arac icin manuel: https://github.com/luxonis/depthai-ros"
   fi
+  # NOT: ika_perception_dl'in VPU spatial tespiti depthai Python kutuphanesine
+  # baglidir (pip ile FAZ 4'te kurulur). Sim'de sim_detection_node kullanilir,
+  # depthai gerekmez.
 
   step "Costmap filtreleri (keepout zone icin)"
   apt_install_safe ros-jazzy-nav2-map-server ros-jazzy-nav2-costmap-2d
@@ -263,6 +272,15 @@ phase_python() {
   python3 -m pip install --user --break-system-packages \
     pyserial pyyaml numpy pytest 2>/dev/null || \
     warn "pip kurulumu atlandi (apt'tekiler yeterli olmali)"
+
+  step "depthai (OAK-D Lite VPU - yalniz gercek arac, sim'de gerekmez)"
+  if python3 -c "import depthai" >/dev/null 2>&1; then
+    ok "depthai zaten kurulu"
+  elif python3 -m pip install --user --break-system-packages depthai 2>/dev/null; then
+    ok "depthai kuruldu"
+  else
+    warn "depthai kurulamadi - sim icin gerekli degil; gercek arac icin: pip install depthai"
+  fi
 }
 
 phase_udev() {
@@ -349,7 +367,8 @@ phase_verify() {
 
   step "Workspace paketleri"
   for p in ika_bringup ika_description ika_simulation ika_navigation \
-           ika_terrain ika_safety ika_base_controller ika_mission; do
+           ika_terrain ika_safety ika_base_controller ika_mission \
+           ika_perception_dl ika_fusion ika_rl_planner; do
     if ros2 pkg prefix "$p" >/dev/null 2>&1; then
       ok "ros2 pkg: $p"
     else
@@ -358,7 +377,8 @@ phase_verify() {
   done
 
   step "Birim testler"
-  for pkg in ika_terrain ika_safety ika_base_controller; do
+  for pkg in ika_terrain ika_safety ika_base_controller \
+             ika_perception_dl ika_fusion ika_rl_planner; do
     cd "$PROJECT_ROOT/ika_ws/src/$pkg" 2>/dev/null || continue
     if python3 -m pytest test/ -q 2>&1 | tail -3 | head -1; then :; fi
   done

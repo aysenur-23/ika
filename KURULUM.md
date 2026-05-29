@@ -203,10 +203,14 @@ sudo apt install -y \
 sudo apt install -y \
   ros-jazzy-nav2-bringup \
   ros-jazzy-navigation2 \
+  ros-jazzy-nav2-mppi-controller \
   ros-jazzy-slam-toolbox \
   ros-jazzy-robot-localization \
   ros-jazzy-rf2o-laser-odometry
 ```
+
+> `nav2-mppi-controller`: klasik DWB'ye alternatif MPPI yerel planlayıcısı
+> (tez kapsamındaki planlayıcı karşılaştırması; `local_planner:=mppi`).
 
 ### 4.5 Robot tanım + TF
 
@@ -248,11 +252,25 @@ sudo apt install -y ros-jazzy-sllidar-ros2 2>/dev/null || \
     git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git )
 ```
 
-### 4.9 Depth kamera (OAK-D Lite, sadece gerçek araç için)
+### 4.9 Algılama: vision_msgs + Depth kamera (OAK-D Lite)
 
+DL nesne tespiti `/detected_objects`'i **vision_msgs/Detection3DArray** olarak
+yayar; `ika_perception_dl` ve `ika_fusion` için bu mesaj paketi **zorunlu**
+(sim dahil):
+```bash
+sudo apt install -y ros-jazzy-vision-msgs
+```
+
+OAK-D Lite sürücüsü (yalnız gerçek araç):
 ```bash
 sudo apt install -y ros-jazzy-depthai-ros-driver 2>/dev/null || \
   echo "depthai apt'te yok. Sim için gerek yok; gerçek araç gerektiğinde manuel kur: https://github.com/luxonis/depthai-ros"
+```
+
+VPU üzerinde spatial detection için **depthai Python** kütüphanesi gerekir
+(yalnız gerçek araç; sim'de `sim_detection_node` kullanıldığından gerekmez):
+```bash
+python3 -m pip install --user --break-system-packages depthai
 ```
 
 ### 4.10 Python paketleri
@@ -398,19 +416,34 @@ gz sim --help
 ### 9.3 Workspace paketleri görünüyor mu?
 
 ```bash
-ros2 pkg list | grep ika_     # 8 paket listelenmeli
+ros2 pkg list | grep ika_     # 11 paket listelenmeli
 ros2 pkg prefix ika_simulation
 ```
+
+> Paketler: ika_bringup, ika_description, ika_simulation, ika_navigation,
+> ika_terrain, ika_safety, ika_base_controller, ika_mission,
+> **ika_perception_dl**, **ika_fusion**, **ika_rl_planner**.
 
 ### 9.4 Birim testler (Pi'de gerek yoktur ama hızlı doğrulama)
 
 ```bash
-cd ~/ika/ika_ws/src/ika_terrain && python3 -m pytest test/ -v
-cd ~/ika/ika_ws/src/ika_safety && python3 -m pytest test/ -v
+# Tek komutta tüm paketlerin testleri (önerilen)
+cd ~/ika/ika_ws
+colcon test --packages-select \
+  ika_terrain ika_safety ika_base_controller \
+  ika_perception_dl ika_fusion ika_rl_planner
+colcon test-result --verbose
+
+# veya tek tek pytest ile:
+cd ~/ika/ika_ws/src/ika_terrain        && python3 -m pytest test/ -v
+cd ~/ika/ika_ws/src/ika_safety         && python3 -m pytest test/ -v
 cd ~/ika/ika_ws/src/ika_base_controller && python3 -m pytest test/ -v
+cd ~/ika/ika_ws/src/ika_perception_dl  && python3 -m pytest test/ -v
+cd ~/ika/ika_ws/src/ika_fusion         && python3 -m pytest test/ -v
+cd ~/ika/ika_ws/src/ika_rl_planner     && python3 -m pytest test/ -v
 ```
 
-> Toplam 22 test, hepsi PASSED olmalı.
+> Toplam 76 test, hepsi PASSED olmalı.
 
 ### 9.5 URDF doğrulama
 

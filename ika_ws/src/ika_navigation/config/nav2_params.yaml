@@ -150,7 +150,7 @@ global_costmap:
       robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "terrain_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "terrain_layer", "detection_layer", "inflation_layer"]
       # Keepout zonu aktif etmek icin:
       #   1) ika_navigation/maps/keepout_mask.{yaml,pgm} olusturun (DENEMELER.md 12)
       #   2) plugins listesine "keepout_filter" ekleyin
@@ -193,6 +193,18 @@ global_costmap:
         plugin: "nav2_costmap_2d::StaticLayer"
         enabled: true
         map_topic: /terrain_obstacles
+        map_subscribe_transient_local: false
+        subscribe_to_updates: false
+        transform_tolerance: 0.5
+
+      # detection_layer: ika_fusion node'unun /detection_obstacles yayinini
+      # (DL ile tespit edilen dinamik/statik nesneler) StaticLayer olarak
+      # costmap'e ekler - lidarin goremeyecegi (2D scan duzlemi ustundeki)
+      # insan govdesi gibi engelleri yakalar. terrain_layer ile ayni kalip.
+      detection_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        enabled: true
+        map_topic: /detection_obstacles
         map_subscribe_transient_local: false
         subscribe_to_updates: false
         transform_tolerance: 0.5
@@ -243,7 +255,7 @@ local_costmap:
       height: 4
       resolution: 0.05
       robot_radius: 0.25
-      plugins: ["voxel_layer", "terrain_layer", "inflation_layer"]
+      plugins: ["voxel_layer", "terrain_layer", "detection_layer", "inflation_layer"]
 
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -277,6 +289,14 @@ local_costmap:
         plugin: "nav2_costmap_2d::StaticLayer"
         enabled: true
         map_topic: /terrain_obstacles
+        map_subscribe_transient_local: false
+        subscribe_to_updates: false
+        transform_tolerance: 0.5
+
+      detection_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        enabled: true
+        map_topic: /detection_obstacles
         map_subscribe_transient_local: false
         subscribe_to_updates: false
         transform_tolerance: 0.5

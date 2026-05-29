@@ -1,0 +1,22 @@
+sim_detection:
+  ros__parameters:
+    odom_truth_topic: /odom_truth
+    detections_topic: /detected_objects
+    state_topic: /detection_state
+    frame_id: base_link
+    hfov_deg: 69.0            # OAK-D Lite RGB yatay FOV
+    min_range_m: 0.2
+    max_range_m: 6.0
+    nominal_z: 0.3
+    confidence: 0.95
+    publish_rate_hz: 15.0
+
+    # Senaryo: onumuzden gecen bir yaya (DYNAMIC) + sabit bir sandalye (STATIC).
+    # Paralel listeler - hepsi ayni uzunlukta olmali.
+    # Yaya: world (2, -1.5)'ten +y'ye 0.4 m/s -> ~3.75 sn'de tam onumuzden gecer.
+    obstacle_labels:  ['person',  'chair']
+    obstacle_hazards: ['DYNAMIC', 'STATIC']
+    obstacle_x0:      [2.0,       3.0]
+    obstacle_y0:      [-1.5,      0.5]
+    obstacle_vx:      [0.0,       0.0]
+    obstacle_vy:      [0.4,       0.0]
