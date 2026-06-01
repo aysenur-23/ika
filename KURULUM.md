@@ -252,7 +252,7 @@ sudo apt install -y ros-jazzy-sllidar-ros2 2>/dev/null || \
     git clone --depth 1 https://github.com/Slamtec/sllidar_ros2.git )
 ```
 
-### 4.9 Algılama: vision_msgs + Depth kamera (OAK-D Lite)
+### 4.9 Algılama: vision_msgs + Pi Camera + ML çıkarım
 
 DL nesne tespiti `/detected_objects`'i **vision_msgs/Detection3DArray** olarak
 yayar; `ika_perception_dl` ve `ika_fusion` için bu mesaj paketi **zorunlu**
@@ -261,17 +261,34 @@ yayar; `ika_perception_dl` ve `ika_fusion` için bu mesaj paketi **zorunlu**
 sudo apt install -y ros-jazzy-vision-msgs
 ```
 
-OAK-D Lite sürücüsü (yalnız gerçek araç):
+**Raspberry Pi Camera (CSI) sürücüsü** — gerçek robot için:
 ```bash
-sudo apt install -y ros-jazzy-depthai-ros-driver 2>/dev/null || \
-  echo "depthai apt'te yok. Sim için gerek yok; gerçek araç gerektiğinde manuel kur: https://github.com/luxonis/depthai-ros"
-```
+# libcamera tabanlı (Pi Camera Module için doğal seçim)
+sudo apt install -y libcamera-tools libcamera-apps
+sudo apt install -y ros-jazzy-camera-ros 2>/dev/null || \
+  echo "camera_ros apt'te yoksa: ika_ws/src/third_party/ altına git clone https://github.com/christianrauch/camera_ros"
 
-VPU üzerinde spatial detection için **depthai Python** kütüphanesi gerekir
-(yalnız gerçek araç; sim'de `sim_detection_node` kullanıldığından gerekmez):
+# Alternatif (USB UVC kameralar veya v4l2 ile Pi Camera):
+sudo apt install -y ros-jazzy-v4l2-camera
+```
+> Pi Camera'yı `sudo raspi-config` → *Interface Options* → *Camera* ile etkinleştir
+> (Pi 5'te Ubuntu Server'da genelde varsayılan açık; `libcamera-hello` ile doğrula).
+
+**ML çıkarım (ONNX runtime)** — DL nesne tespiti Pi5 CPU'da küçük/kuantize
+modelle (YOLOv8n veya MobileNet-SSD ONNX) çalışır:
 ```bash
+python3 -m pip install --user --break-system-packages onnxruntime
+```
+> Model dosyası ayrıca indirilip `dl_params.yaml`'da `model_path` ile gösterilir.
+> Sim'de detection `sim_detection_node` ile sentetik üretildiğinden ONNX gerekmez.
+
+**OAK-D Lite (opsiyonel — varsa stereo derinlik için):**
+```bash
+sudo apt install -y ros-jazzy-depthai-ros-driver 2>/dev/null
 python3 -m pip install --user --break-system-packages depthai
 ```
+> Bu projede varsayılan kamera Pi Camera (RGB). OAK-D varsa gelecekte derinlik
+> tabanlı terrain RANSAC entegrasyonu canlandırılabilir; şu an opsiyonel.
 
 ### 4.10 Python paketleri
 
@@ -443,7 +460,7 @@ cd ~/ika/ika_ws/src/ika_fusion         && python3 -m pytest test/ -v
 cd ~/ika/ika_ws/src/ika_rl_planner     && python3 -m pytest test/ -v
 ```
 
-> Toplam 76 test, hepsi PASSED olmalı.
+> Toplam 87 test, hepsi PASSED olmalı.
 
 ### 9.5 URDF doğrulama
 

@@ -243,14 +243,19 @@ phase_packages() {
   # ika_perception_dl /detected_objects (Detection3DArray) yayar, ika_fusion tuketir.
   apt_install_safe ros-jazzy-vision-msgs
 
-  step "Depth kamera surucusu (OAK-D Lite / depthai)"
-  if ! apt_install_safe ros-jazzy-depthai-ros-driver; then
-    warn "depthai-ros apt'te yok. Sim icin gerekli degil."
-    warn "Gercek arac icin manuel: https://github.com/luxonis/depthai-ros"
+  step "Kamera surucusu (Pi Camera CSI - varsayilan)"
+  # libcamera + camera_ros (Pi Camera native) ya da v4l2_camera (UVC + Pi v4l2)
+  apt_install_safe libcamera-tools libcamera-apps ros-jazzy-v4l2-camera
+  if ! apt_install_safe ros-jazzy-camera-ros; then
+    warn "camera_ros apt'te yok - source clone fallback:"
+    clone_into_workspace https://github.com/christianrauch/camera_ros.git camera_ros
   fi
-  # NOT: ika_perception_dl'in VPU spatial tespiti depthai Python kutuphanesine
-  # baglidir (pip ile FAZ 4'te kurulur). Sim'de sim_detection_node kullanilir,
-  # depthai gerekmez.
+
+  step "OAK-D Lite (opsiyonel - varsa stereo derinlik)"
+  if ! apt_install_safe ros-jazzy-depthai-ros-driver; then
+    warn "depthai-ros apt'te yok - gerekli degil (varsayilan kamera Pi Camera)."
+    warn "OAK-D varsa manuel: https://github.com/luxonis/depthai-ros"
+  fi
 
   step "Costmap filtreleri (keepout zone icin)"
   apt_install_safe ros-jazzy-nav2-map-server ros-jazzy-nav2-costmap-2d
@@ -273,13 +278,22 @@ phase_python() {
     pyserial pyyaml numpy pytest 2>/dev/null || \
     warn "pip kurulumu atlandi (apt'tekiler yeterli olmali)"
 
-  step "depthai (OAK-D Lite VPU - yalniz gercek arac, sim'de gerekmez)"
+  step "onnxruntime (gercek robot DL tespit cikarimi - Pi5 CPU)"
+  # RGB DL detektor (YOLOv8n/MobileNet-SSD ONNX) Pi'de onnxruntime ile kosar.
+  # Sim'de sim_detection_node kullanildigindan ONNX gerekmez (sim-only kurulumda atlanabilir).
+  if python3 -c "import onnxruntime" >/dev/null 2>&1; then
+    ok "onnxruntime zaten kurulu"
+  elif python3 -m pip install --user --break-system-packages onnxruntime 2>/dev/null; then
+    ok "onnxruntime kuruldu"
+  else
+    warn "onnxruntime kurulamadi - sim icin gerekli degil; gercek robot tespit icin gerekli"
+  fi
+
+  step "depthai (opsiyonel - yalniz OAK-D varsa)"
   if python3 -c "import depthai" >/dev/null 2>&1; then
     ok "depthai zaten kurulu"
-  elif python3 -m pip install --user --break-system-packages depthai 2>/dev/null; then
-    ok "depthai kuruldu"
   else
-    warn "depthai kurulamadi - sim icin gerekli degil; gercek arac icin: pip install depthai"
+    warn "depthai atlandi (varsayilan kamera Pi Camera). OAK-D icin: pip install depthai"
   fi
 }
 
