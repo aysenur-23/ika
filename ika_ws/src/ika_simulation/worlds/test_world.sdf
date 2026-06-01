@@ -154,5 +154,121 @@
       </link>
     </model>
 
+    <!-- =============================================================
+         Tez engel taksonomisi - 7 sinif (bkz. TEST_PROTOKOLU.md)
+         ============================================================= -->
+
+    <!-- [Sinif 1] Sabit engel: ince direk (PVC boru benzeri) -->
+    <!-- Lidar'in ince-engel cozumunurlugunu sinar; obstacle_layer'da isaretlenir. -->
+    <model name="thin_pole_1">
+      <static>true</static>
+      <pose>3.0 -0.8 0.7 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>1.4</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>1.4</length></cylinder></geometry>
+          <material><ambient>0.85 0.75 0.15 1</ambient><diffuse>0.85 0.75 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- [Sinif 4] Yukselti / esik: 8 cm kaldirim benzeri eşik -->
+    <!-- ika_terrain'in max_step_height_m esigi etrafinda sinif sinir testi. -->
+    <model name="kerb_step_1">
+      <static>true</static>
+      <pose>3.5 -3.5 0.04 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.5 0.40 0.08</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.5 0.40 0.08</size></box></geometry>
+          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.55 0.55 0.55 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- [Sinif 5] Dinamik engel (gorsel): statik insan modeli -->
+    <!-- Govde silindir + kafa kuresi. Sim_detection_node ile esleyince DL
+         hattinin tepkisi olcum altina alinir. Gercek dinamik hareket
+         sim_detection_params.yaml'da scripted (virtual) olarak yapilir. -->
+    <model name="person_static_1">
+      <static>true</static>
+      <pose>5.0 2.0 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="body"><pose>0 0 0.45 0 0 0</pose>
+          <geometry><cylinder><radius>0.20</radius><length>0.90</length></cylinder></geometry></collision>
+        <visual name="body_v"><pose>0 0 0.45 0 0 0</pose>
+          <geometry><cylinder><radius>0.20</radius><length>0.90</length></cylinder></geometry>
+          <material><ambient>0.20 0.30 0.70 1</ambient><diffuse>0.20 0.30 0.70 1</diffuse></material>
+        </visual>
+        <collision name="head"><pose>0 0 1.05 0 0 0</pose>
+          <geometry><sphere><radius>0.13</radius></sphere></geometry></collision>
+        <visual name="head_v"><pose>0 0 1.05 0 0 0</pose>
+          <geometry><sphere><radius>0.13</radius></sphere></geometry>
+          <material><ambient>0.92 0.74 0.55 1</ambient><diffuse>0.92 0.74 0.55 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- [Sinif 6] Kor koridor / L-tipi engel dizilimi -->
+    <!-- SLAM ile haritalanip donus + alternatif rota arama testi. -->
+    <model name="l_corridor_wall_a">
+      <static>true</static>
+      <pose>-4.0 3.0 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 0.10 0.7</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 0.10 0.7</size></box></geometry>
+          <material><ambient>0.50 0.50 0.50 1</ambient><diffuse>0.50 0.50 0.50 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="l_corridor_wall_b">
+      <static>true</static>
+      <pose>-5.0 3.6 0.35 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.4 0.10 0.7</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.4 0.10 0.7</size></box></geometry>
+          <material><ambient>0.50 0.50 0.50 1</ambient><diffuse>0.50 0.50 0.50 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- [Sinif 7] Riskli zemin: renk yamasi gostergeleri -->
+    <!-- Tezdeki sinif: SAFE/CAUTION/RISKY. Su an gorsel - kamera tabanli
+         yuzey siniflandirici (RGB renk/doku) sonraki faz; geometrik terrain
+         RANSAC bu yamalardan etkilenmez (sadece visual cue). -->
+    <model name="surface_patch_safe">
+      <static>true</static>
+      <pose>5.0 4.8 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>1.0 1.0 0.01</size></box></geometry>
+          <material><ambient>0.30 0.70 0.30 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="surface_patch_caution">
+      <static>true</static>
+      <pose>6.2 4.8 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>1.0 1.0 0.01</size></box></geometry>
+          <material><ambient>0.85 0.75 0.20 1</ambient><diffuse>0.85 0.75 0.20 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="surface_patch_risky">
+      <static>true</static>
+      <pose>7.4 4.8 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>1.0 1.0 0.01</size></box></geometry>
+          <material><ambient>0.75 0.25 0.25 1</ambient><diffuse>0.75 0.25 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- NOT: [Sinif 2] Yakin mesafe kritik engel ayri model gerektirmez -
+         mevcut kutu/duvarlardan birine yaklasildiginda Nav2 collision_monitor
+         devreye girer (nav2_params.yaml). Stop_zone_distance_m esigi testi.
+
+         [Sinif 3] Negatif engel - mevcut dropoff_platform (-3, 0) kullanilir;
+         robot platforma cikip kenara dogru gittiginde RANSAC DROPOFF_DANGER
+         tetikler. -->
+
   </world>
 </sdf>

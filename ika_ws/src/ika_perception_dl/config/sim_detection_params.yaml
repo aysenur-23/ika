@@ -11,12 +11,20 @@ sim_detection:
     confidence: 0.95
     publish_rate_hz: 15.0
 
-    # Senaryo: onumuzden gecen bir yaya (DYNAMIC) + sabit bir sandalye (STATIC).
+    # Tez engel taksonomisi sahnesi (bkz. TEST_PROTOKOLU.md):
+    #   - person  (DYNAMIC) : sol->sag yayadan geciyor (Sinif 5)
+    #   - chair   (STATIC)  : sabit nesne, costmap'e basilir (Sinif 1)
+    #   - bicycle (DYNAMIC) : ileri-saga dogru ilerleyen bisiklet (Sinif 5)
+    #   - car     (DYNAMIC) : uzaktan robota dogru yaklasan araç (Sinif 5)
     # Paralel listeler - hepsi ayni uzunlukta olmali.
-    # Yaya: world (2, -1.5)'ten +y'ye 0.4 m/s -> ~3.75 sn'de tam onumuzden gecer.
-    obstacle_labels:  ['person',  'chair']
-    obstacle_hazards: ['DYNAMIC', 'STATIC']
-    obstacle_x0:      [2.0,       3.0]
-    obstacle_y0:      [-1.5,      0.5]
-    obstacle_vx:      [0.0,       0.0]
-    obstacle_vy:      [0.4,       0.0]
+    #
+    # Yaya: world (2, -1.5)'ten +y'ye 0.4 m/s -> ~3.75 sn'de tam onumuzden gecer
+    # Sandalye: world (3, 0.5)'te sabit
+    # Bisiklet: world (4, -2.5)'ten +y +0.3, +x +0.2 m/s diagonal hareket
+    # Araç: world (8, 0)'dan -x'e 0.5 m/s -> robota dogru yaklasir (uzaktan)
+    obstacle_labels:  ['person',  'chair',  'bicycle', 'car']
+    obstacle_hazards: ['DYNAMIC', 'STATIC', 'DYNAMIC', 'DYNAMIC']
+    obstacle_x0:      [2.0,       3.0,      4.0,       8.0]
+    obstacle_y0:      [-1.5,      0.5,      -2.5,      0.0]
+    obstacle_vx:      [0.0,       0.0,      0.2,       -0.5]
+    obstacle_vy:      [0.4,       0.0,      0.3,       0.0]

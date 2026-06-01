@@ -31,7 +31,48 @@ Kapsam:
 
 ---
 
-## 1. Senaryo A — DL dinamik engel (simülasyon)
+## 1. Tez engel taksonomisi ve yazılım eşleştirmesi
+
+Tez önerisindeki engel sınıflandırması, **sim'de hangi modelle test edilir**, **hangi yazılım bileşeni karar verir** ve **beklenen davranış** aşağıdaki tabloda eşlenir.
+
+| # | Tez sınıfı | Sim'deki karşılığı (`test_world.sdf`) | Tespit eden node | Tepki / costmap'e etkisi | Pass kriteri |
+|---|---|---|---|---|---|
+| **1** | **Sabit fiziksel engel** (kutu, duvar, ince direk, bariyer) | `obstacle_box_{1,2,3}`, `wall_left/right`, **`thin_pole_1`** (Ø 8 cm) | Lidar → `nav2_costmap_2d::ObstacleLayer` (+ DL `chair`/STATIC) | Costmap'te lethal hücre, Nav2 etrafından planlar | Robot çarpmadan geçer; ince direği de algılar |
+| **2** | **Yakın mesafe kritik engel** (ani çıkan, çarpışma riski) | Mevcut engellerden birine yakın yaklaşım veya ani konum değişikliği | `nav2_collision_monitor` (Nav2'nin reflex katmanı) + `ika_safety` `safety_supervisor` | `stop_zone_distance_m=0.25` içine girerse acil dur; `slowdown_zone_distance_m=0.55` içinde yavaşla | 25 cm dahilinde tam dur; sensör kaybında E-Stop |
+| **3** | **Negatif engel / çukur** (zemin altına düşme riski) | **`dropoff_platform`** (yüksek platform — robot tepeden kenara) | `ika_terrain` (RANSAC `analyze_ground` → `DROPOFF_DANGER`) | `/terrain_state` JSON `class=DROPOFF_DANGER` → fusion `STOP` | Robot platform kenarına yaklaşınca durur (≥ 15 cm derinlik farkı) |
+| **4** | **Yükselti / tırmanış engeli** (rampa, tümsek, eşik) | `ramp_safe` (~5.7°), `ramp_caution` (~17°), **`kerb_step_1`** (8 cm eşik) | `ika_terrain` (slope_deg + max_step_height_m → `SAFE/CAUTION/IMPASSABLE`) | SAFE → normal; CAUTION → SLOW; IMPASSABLE → STOP + costmap'e basılır | Hafif rampada geçer; dik rampada yavaşlar/durur; eşik > 4 cm engel |
+| **5** | **Dinamik engel** (yürüyen insan, hareketli araç) | **`person_static_1`** (görsel, lidar görür) + `sim_detection_node` (sanal hareketli `person`/`bicycle`/`car`) | `ika_perception_dl` → `ika_fusion` (`hazard=DYNAMIC`, menzil eşikleri) | `dynamic_slow_range_m=2.0` → SLOW; `dynamic_stop_range_m=0.8` → STOP | Yaya yaklaşınca yavaşlar, yakına gelince durur, geçince devam |
+| **6** | **Dar geçit / koridor / kör koridor** (sıkışık navigasyon, ölü uç) | `wall_left + wall_right` (0.7 m dar geçit), **`l_corridor_wall_a/b`** (L-tipi ölü uç) | Nav2 `local_costmap.inflation_layer` + `controller_server` (DWB/MPPI) | Inflation ile güvenli koridor, ölü uçta SLAM haritasından geri çekilir | Robot dar geçidi çarpmadan geçer; kör koridorda geri planlar |
+| **7** | **Riskli zemin** (kaygan, çamur, çakıl — yüzey tipi) | **`surface_patch_{safe,caution,risky}`** (renkli zemin yamaları, görsel) | _Şu an:_ ika_terrain'in geometrik RANSAC'i (sadece eğim/çukur/step). _Sonra:_ RGB tabanlı yüzey sınıflandırma (yol haritası, bkz. §5) | Şu an: yamalar görsel; geometrik özellik yoksa tepki yok | _Faz 2 (ileride):_ kırmızı yama → SLOW, koyu/siyah → STOP |
+
+**Mimari karşılığı** (özet):
+
+```
+                              ┌─── ObstacleLayer ◄── /scan (lidar) ───── [1,2,6]
+                              │
+   Sensörler ──► Algılama ───┼─── DetectionLayer ◄── /detected_objects [5,(7)]
+                              │                          (ika_perception_dl)
+                              │
+                              └─── TerrainLayer  ◄── /terrain_obstacles [3,4]
+                                                       (ika_terrain RANSAC)
+
+   /hazard_state ◄── ika_fusion ◄── (/terrain_state + /detected_objects)
+        │
+        ▼
+   safety_supervisor → /cmd_vel_safe ──► (collision_monitor [2]) ──► motor
+                                              │
+                                              └─── E-Stop / Arduino watchdog
+```
+
+**Faz durumu:**
+- ✅ **1–6** tam ele alınıyor (sim + yazılım hazır).
+- 🟡 **7 (riskli zemin)** kısmi: yüzey **eğim/çukur/eşik** geometrisi kapsanıyor; yüzey **rengi/dokusu** (kayganlık, çamur, vs.) bir sonraki fazda — RGB tabanlı sınıflandırıcı için yol haritası §5'te.
+
+**Sim'de tüm sınıfları tek koşumda görmek için**: `ros2 launch ika_bringup sim_full.launch.py` ile dünyayı aç, sonra ayrı terminalde `ros2 launch ika_perception_dl sim_detection.launch.py` ile sanal DL tespitlerini başlat. Senaryolar §2-3'te.
+
+---
+
+## 2. Senaryo A — DL dinamik engel (simülasyon)
 
 **Amaç:** DL tespiti → füzyon (DYNAMIC) → costmap detection_layer + safety
 SLOW/STOP → planlayıcı tepkisi zincirinin sim'de doğrulanması. Gazebo'da fiziksel
@@ -75,7 +116,7 @@ eksen varsayımı ayrıca sınanmalı (bkz. Bölüm 3).
 
 ---
 
-## 2. Senaryo B — DWB ↔ MPPI planlayıcı karşılaştırması (simülasyon)
+## 3. Senaryo B — DWB ↔ MPPI planlayıcı karşılaştırması (simülasyon)
 
 **Amaç:** Klasik DWB ile örnekleme/optimizasyon tabanlı MPPI'yi aynı dünyada,
 aynı hedeflerle, aynı ölçütlerle karşılaştırmak.
@@ -123,7 +164,7 @@ kutu merkezlerine ayarlı (clearance için).
 
 ---
 
-## 3. Gerçek araç — sınırlı saha testi protokolü
+## 4. Gerçek araç — sınırlı saha testi protokolü
 
 > **UYARI:** Gerçek araç testi yalnızca tüm güvenlik ön koşulları sağlandığında
 > ve fiziksel E-Stop elde tutularak yapılır. Maksimum hız encoder eklenene kadar
@@ -165,7 +206,7 @@ kutu merkezlerine ayarlı (clearance için).
 
 ---
 
-## 4. Öğrenilmiş politika (PPO/SAC) — yol haritası (sonraki faz)
+## 5. Öğrenilmiş politika (PPO/SAC) + RGB yüzey sınıflandırıcı — yol haritası (sonraki faz)
 
 MPPI karşılaştırması tamamlandıktan ve zaman kaldıkça eklenecek. `ika_rl_planner`
 paketi metrik harness'ı ile bu fazın temelini şimdiden sağlıyor (aynı ölçütlerle
@@ -190,3 +231,29 @@ karşılaştırılabilir).
 küçük politika ağıyla uygulanabilir; eğitim PC/sunucuda yapılır. Güvenlik
 zincirinin politikadan bağımsızlığı korunur (öğrenilmiş politika asla doğrudan
 motora yazmaz, hep safety_supervisor'dan geçer).
+
+### 5.1 RGB yüzey sınıflandırıcı (Sınıf 7 — riskli zemin)
+
+Tez engel taksonomisinin 7. sınıfı (kaygan/çamur/su/çakıl) **yüzey rengi ve
+dokusundan** sınıflandırma gerektirir; geometrik RANSAC'in dışında. İki olası
+yol:
+
+1. **Hafif yaklaşım (Pi5'e uygun):** Kameranın "robotun önündeki zemin"
+   bölgesinden (alt-orta ROI) RGB istatistikleri al → HSV/LAB renk uzayında
+   eşik tabanlı sınıflandırma:
+   - SAFE → gri/yeşil dominant (asfalt, çim)
+   - CAUTION → açık sarı/kahverengi (toprak, çakıl)
+   - RISKY → koyu/yansıma karakterli (ıslak zemin, su birikintisi)
+   - Sınıf çıktısı `/terrain_state` JSON'una eklenir: `{"surface_type": "..."}`.
+   - Maliyet: ~50 satır kod, hızlı, kalibre edilebilir.
+2. **Derin yaklaşım (PC eğitimi gerektirir):** Küçük semantic segmentation
+   ağı (örn. BiSeNet-tiny veya MobileViT) → her piksel için sınıf.
+   ONNX'e dönüştürüp Pi5 CPU'da ~2-5 Hz çıkarım.
+
+**Sim doğrulama:** `test_world.sdf`'teki `surface_patch_{safe,caution,risky}`
+renkli yamaları üzerinden geç, üretilen `surface_type` etiketi beklenenle
+eşleşmeli.
+
+**Yapılacak:** `ika_terrain`'e `surface_classifier_node.py` (RGB → sınıf),
+`/terrain_state.surface_type` alanı, `ika_fusion`'a yüzey-tabanlı SLOW/STOP
+kuralı (`risky_surface_action`).
