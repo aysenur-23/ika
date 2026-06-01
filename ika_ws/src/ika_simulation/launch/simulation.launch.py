@@ -19,6 +19,7 @@ from launch.substitutions import (
     Command, LaunchConfiguration, PathJoinSubstitution, TextSubstitution,
 )
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -39,11 +40,17 @@ def generate_launch_description():
     spawn_z = LaunchConfiguration('z')
     spawn_yaw = LaunchConfiguration('yaw')
 
+    # Jazzy: Command(...) ciktisi (URDF XML) parametre olarak verilince launch
+    # YAML olarak parse etmeye calisir -> '<?xml' YAML'da gecersiz. ParameterValue
+    # ile string tipini acikca belirtmek gerekiyor.
     robot_description = {
-        'robot_description': Command([
-            TextSubstitution(text='xacro '), xacro_path,
-            TextSubstitution(text=' use_sim:=true'),
-        ]),
+        'robot_description': ParameterValue(
+            Command([
+                TextSubstitution(text='xacro '), xacro_path,
+                TextSubstitution(text=' use_sim:=true'),
+            ]),
+            value_type=str,
+        ),
         'use_sim_time': True,
     }
 

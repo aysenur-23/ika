@@ -11,6 +11,7 @@ from launch.substitutions import (
     Command, LaunchConfiguration, PathJoinSubstitution, TextSubstitution,
 )
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -21,11 +22,15 @@ def generate_launch_description():
     use_sim = LaunchConfiguration('use_sim')
     use_rviz = LaunchConfiguration('rviz')
 
+    # Jazzy: Command(...) URDF ciktisini ParameterValue ile string olarak ver.
     robot_description = {
-        'robot_description': Command([
-            TextSubstitution(text='xacro '), xacro_path,
-            TextSubstitution(text=' use_sim:='), use_sim,
-        ]),
+        'robot_description': ParameterValue(
+            Command([
+                TextSubstitution(text='xacro '), xacro_path,
+                TextSubstitution(text=' use_sim:='), use_sim,
+            ]),
+            value_type=str,
+        ),
     }
 
     return LaunchDescription([
