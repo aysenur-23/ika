@@ -177,6 +177,22 @@ phase_ros() {
   apt_install ros-jazzy-desktop ros-dev-tools
   ok "ROS 2 Jazzy core kurulu"
 
+  step "OSRF (Gazebo Harmonic) apt anahtari + deposu"
+  # ROS 2 Jazzy ros-gz koprusu OSRF depo disinda gz-harmonic'i CEKMEZ.
+  # Gazebo runtime'i icin OSRF deposu zorunlu (Ubuntu 24.04 + Harmonic).
+  if [[ ! -f /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg ]]; then
+    sudo curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+      -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+    ok "OSRF anahtari indirildi"
+  else
+    ok "OSRF anahtari mevcut"
+  fi
+  local osrf_line
+  osrf_line="deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $codename main"
+  echo "$osrf_line" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+  sudo apt-get update
+  ok "OSRF Gazebo deposu: $codename"
+
   step "Bash setup: ROS 2 setup.bash"
   ensure_line "source /opt/ros/jazzy/setup.bash" "$HOME/.bashrc"
   ok "~/.bashrc icin ROS 2 source eklendi"
@@ -201,7 +217,10 @@ phase_packages() {
   fi
 
   step "Gazebo Harmonic + bridge"
+  # gz-harmonic: Gazebo runtime'i (OSRF deposundan; phase_ros'da eklendi).
+  # ros-jazzy-ros-gz-*: ROS 2 <-> Gazebo koprusu.
   apt_install_safe \
+    gz-harmonic \
     ros-jazzy-ros-gz \
     ros-jazzy-ros-gz-bridge \
     ros-jazzy-ros-gz-sim \
