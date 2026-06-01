@@ -262,13 +262,94 @@
       </link>
     </model>
 
+    <!-- [Sinif 3] Negatif engel ek senaryolari -->
+
+    <!-- (3a) On taraf derinlik-tabanli cukur testi:
+         Yukseltilmis 2x2 m platform (30 cm). Robot platforma cikip on
+         kenara baktiginda RANSAC DROPOFF_DANGER tetikler. Mevcut arkadaki
+         dropoff_platform (-3, 0) ek olarak, on tarafta da test edilir. -->
+    <model name="pit_platform_forward">
+      <static>true</static>
+      <pose>7.0 1.5 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 2.0 0.30</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 2.0 0.30</size></box></geometry>
+          <material><ambient>0.30 0.30 0.50 1</ambient><diffuse>0.30 0.30 0.50 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- (3b) Gorsel cukur isaretleri (asfalt/zemin uzerinde koyu lekeler):
+         RANSAC depth-tabanli tespit ETMEZ (gercek bir cukur degil, gorsel),
+         ancak ileride RGB yuzey siniflandirici (Sinif 7) bunlari koyu/risky
+         olarak isaretler. Tez sunumu icin sahne zenginligi. -->
+    <model name="pothole_visual_1">
+      <static>true</static>
+      <pose>5.5 1.5 0.003 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>0.35</radius><length>0.005</length></cylinder></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="pothole_visual_2">
+      <static>true</static>
+      <pose>4.5 -0.5 0.003 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>0.28</radius><length>0.005</length></cylinder></geometry>
+          <material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.10 0.10 0.10 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- (3c) Gorsel uzun yarik (trench/kanal) -->
+    <model name="trench_visual_1">
+      <static>true</static>
+      <pose>6.0 -2.5 0.003 0 0 0.3</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>1.8 0.18 0.005</size></box></geometry>
+          <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.06 0.06 0.06 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- (3d) Tehlike konisi: gorsel cukur yanina, sahne icin -->
+    <model name="hazard_cone_1">
+      <static>true</static>
+      <pose>5.5 2.1 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><pose>0 0 0.20 0 0 0</pose>
+          <geometry><cylinder><radius>0.10</radius><length>0.40</length></cylinder></geometry></collision>
+        <visual name="v"><pose>0 0 0.20 0 0 0</pose>
+          <geometry><cylinder><radius>0.10</radius><length>0.40</length></cylinder></geometry>
+          <material><ambient>0.95 0.45 0.10 1</ambient><diffuse>0.95 0.45 0.10 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="hazard_cone_2">
+      <static>true</static>
+      <pose>4.5 0.1 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><pose>0 0 0.18 0 0 0</pose>
+          <geometry><cylinder><radius>0.08</radius><length>0.36</length></cylinder></geometry></collision>
+        <visual name="v"><pose>0 0 0.18 0 0 0</pose>
+          <geometry><cylinder><radius>0.08</radius><length>0.36</length></cylinder></geometry>
+          <material><ambient>0.95 0.45 0.10 1</ambient><diffuse>0.95 0.45 0.10 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
     <!-- NOT: [Sinif 2] Yakin mesafe kritik engel ayri model gerektirmez -
          mevcut kutu/duvarlardan birine yaklasildiginda Nav2 collision_monitor
          devreye girer (nav2_params.yaml). Stop_zone_distance_m esigi testi.
 
-         [Sinif 3] Negatif engel - mevcut dropoff_platform (-3, 0) kullanilir;
-         robot platforma cikip kenara dogru gittiginde RANSAC DROPOFF_DANGER
-         tetikler. -->
+         [Sinif 3] Negatif engel - mevcut dropoff_platform (-3, 0) + yeni
+         pit_platform_forward (7, 1.5) RANSAC depth-tabanli DROPOFF_DANGER
+         testleri. Gorsel pothole/trench/cone sahne icin (Sinif 7 yuzey
+         siniflandirici sonraki faz). -->
 
   </world>
 </sdf>
