@@ -325,7 +325,9 @@ phase_build() {
     return 1
   fi
   # shellcheck disable=SC1091
-  source /opt/ros/jazzy/setup.bash
+  # ROS setup.bash AMENT_TRACE_SETUP_FILES gibi degiskenleri tanimsiz birakir;
+  # script'in `set -u`'su ile catisir -> sourcing sirasinda devre disi birak.
+  set +u; source /opt/ros/jazzy/setup.bash; set -u
 
   step "rosdep init + update"
   if [[ ! -d /etc/ros/rosdep/sources.list.d ]]; then
@@ -364,11 +366,15 @@ phase_build() {
 phase_verify() {
   phase "FAZ 7: Kurulum dogrulama"
   # shellcheck disable=SC1091
+  # ROS setup.bash + workspace setup.bash icin `set -u` geciici devre disi
+  # (bkz. phase_build aciklamasi).
+  set +u
   source /opt/ros/jazzy/setup.bash 2>/dev/null || true
   if [[ -f "$PROJECT_ROOT/ika_ws/install/setup.bash" ]]; then
     # shellcheck disable=SC1091
     source "$PROJECT_ROOT/ika_ws/install/setup.bash"
   fi
+  set -u
 
   step "ROS 2 cli"
   ros2 --help >/dev/null 2>&1 && ok "ros2 cli" || err "ros2 cli BULUNAMADI"
