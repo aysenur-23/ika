@@ -402,7 +402,13 @@ phase_verify() {
   ros2 doctor --report 2>&1 | head -n 30 || warn "ros2 doctor calismadi"
 
   step "Gazebo gz cli"
-  gz --version >/dev/null 2>&1 && ok "gz cli ($(gz --version 2>&1 | head -1))" || err "gz cli BULUNAMADI"
+  # `gz --version` yardim menusunu basar (gz'nin global --version flag'i yok);
+  # gercek surum kontrolu icin `gz sim --version` kullanilir.
+  if gz sim --version >/dev/null 2>&1; then
+    ok "gz cli ($(gz sim --version 2>&1 | head -1))"
+  else
+    err "gz cli BULUNAMADI - 'sudo apt install gz-harmonic' gerekiyor"
+  fi
 
   step "Workspace paketleri"
   for p in ika_bringup ika_description ika_simulation ika_navigation \
