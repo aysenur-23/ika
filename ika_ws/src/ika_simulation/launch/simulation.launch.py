@@ -35,6 +35,7 @@ def generate_launch_description():
 
     headless = LaunchConfiguration('headless')
     use_rviz = LaunchConfiguration('rviz')
+    render_engine = LaunchConfiguration('render_engine')
     spawn_x = LaunchConfiguration('x')
     spawn_y = LaunchConfiguration('y')
     spawn_z = LaunchConfiguration('z')
@@ -54,9 +55,12 @@ def generate_launch_description():
         'use_sim_time': True,
     }
 
-    # gz_args: '-r <world>' veya '-r -s --headless-rendering <world>'
-    gz_args_normal = [TextSubstitution(text='-r '), world_path]
-    gz_args_headless = [TextSubstitution(text='-r -s --headless-rendering '), world_path]
+    # gz_args: '-r [--render-engine <eng>] <world>' veya headless varyanti.
+    # render_engine default 'ogre2' (Pi). WSL2'de yazilim OpenGL (LLVMpipe) ile
+    # uyumsuz -> 'ogre' (OGRE 1) gerekir, ayrica LIBGL_ALWAYS_SOFTWARE=1.
+    re_arg = [TextSubstitution(text='--render-engine '), render_engine, TextSubstitution(text=' ')]
+    gz_args_normal = [TextSubstitution(text='-r '), *re_arg, world_path]
+    gz_args_headless = [TextSubstitution(text='-r -s --headless-rendering '), *re_arg, world_path]
 
     gazebo_normal = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -111,6 +115,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('headless', default_value='false'),
         DeclareLaunchArgument('rviz', default_value='true'),
+        DeclareLaunchArgument(
+            'render_engine', default_value='ogre2',
+            description="Gazebo rendering engine: 'ogre2' (Pi default) | 'ogre' (WSL2/yazilim OGL)"),
         DeclareLaunchArgument('x', default_value='0.0'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.1'),

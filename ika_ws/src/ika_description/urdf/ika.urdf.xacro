@@ -8,9 +8,11 @@
   <xacro:include filename="$(find ika_description)/urdf/ika_base.xacro"/>
   <xacro:include filename="$(find ika_description)/urdf/ika_sensors.xacro"/>
 
-  <!-- String karsilastirmasi: xacro property string olarak gelir, hem
-       'true' hem 'True' kabul edelim. -->
-  <xacro:if value="${use_sim == 'true' or use_sim == 'True'}">
+  <!-- xacro 'true' arg'ini Python bool True'ye coerce eder; string
+       karsilastirmasi (=='true'|'True') False kalir. Bu yuzden dogrudan
+       truthy degeri kullaniyoruz: hem 'true'/'True' (string), hem True (bool),
+       hem 1 hepsi Python'da truthy. -->
+  <xacro:if value="${use_sim}">
     <xacro:include filename="$(find ika_description)/urdf/ika_gazebo.xacro"/>
   </xacro:if>
 

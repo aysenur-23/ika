@@ -76,7 +76,9 @@ fi
 step "Build (colcon, $(nproc) cekirdek paralel)"
 
 # shellcheck disable=SC1091
-source /opt/ros/jazzy/setup.bash
+# ROS setup.bash AMENT_TRACE_SETUP_FILES gibi tanimsiz degiskenleri okur;
+# script'in `set -u`'su ile catisir -> sourcing sirasinda gecici devre disi.
+set +u; source /opt/ros/jazzy/setup.bash; set -u
 
 cd "$WS"
 
@@ -98,7 +100,7 @@ BUILD_TIME=$((SECONDS - BUILD_START))
 ok "Build tamamlandi: ${BUILD_TIME}s"
 
 # shellcheck disable=SC1091
-source "$WS/install/setup.bash"
+set +u; source "$WS/install/setup.bash"; set -u
 
 # ---- Sim launch (background) -----------------------------------------
 step "Sim launch: ros2 launch $LAUNCH_PKG $LAUNCH_FILE (arka plan)"
