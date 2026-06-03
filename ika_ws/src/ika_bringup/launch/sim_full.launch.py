@@ -1,20 +1,17 @@
 """Gazebo + tum yazilim katmanlari + suris modu seçimi.
 
+WSL TEZDEKI DEMO icin default'lar (parametre vermeden direkt 'ros2 launch
+ika_bringup sim_full.launch.py' yazarsan):
+  autonomous_mode = nav2           — Nav2 + SLAM + yol planlama (gercek profesyonel)
+  headless        = true           — Gazebo GUI yok (WSL surface budget rahat)
+  rviz            = true           — RViz acik (harita + plan + lidar gorulur)
+  enable_octomap  = true           — 3D harita (octomap, tezdeki '3-eksenli')
+  render_engine   = ogre           — WSL'de OGRE1
+
 Suris modlari (`autonomous_mode` arg):
-    avoider  (DEFAULT) — Tam-reaktif engel kacinma. Robot dumduz baslar, engelle
-                         karsilasinca sola/saga doner, engel bitince ev yonune
-                         doner, 2 m engelsiz mesafe sonra durur. Nav2 yuklenmez.
-    nav2     — Klasik goal-based Nav2 + DWB/MPPI. /goal_pose ile hedef gonder.
+    nav2     (DEFAULT) — Klasik goal-based Nav2 + DWB/MPPI + planlama gorseli.
+    avoider  — Tam-reaktif engel kacinma (basit bug algoritmasi).
     off      — Sadece slam + perception + safety; suris komutu kullanici (teleop).
-
-Gercek arac (real_robot.launch.py) de ayni arg'i destekler.
-
-Diger arg'ler:
-    headless:=true|false       Gazebo GUI gizle (WSL Mod C default false)
-    rviz:=true|false           RViz ac (WSL default false)
-    render_engine:=ogre|ogre2  WSL'de 'ogre' onerilir.
-    local_planner:=dwb|mppi    (sadece autonomous_mode=nav2 icin)
-    slam_mode:=mapping|localization
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -36,16 +33,19 @@ def generate_launch_description():
     local_planner = LaunchConfiguration('local_planner')
     slam_mode = LaunchConfiguration('slam_mode')
     autonomous_mode = LaunchConfiguration('autonomous_mode')
+    enable_octomap = LaunchConfiguration('enable_octomap')
 
     # enable_nav2 = (autonomous_mode == 'nav2')
     enable_nav2 = PythonExpression(["'", autonomous_mode, "' == 'nav2'"])
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
-        DeclareLaunchArgument('headless', default_value='false',
-                              description="Gazebo GUI gizle. WSL Mod C default false."),
-        DeclareLaunchArgument('rviz', default_value='false',
-                              description="RViz ac. WSL'de Gazebo + RViz birlikte surface budget asar."),
+        # WSL TEZDEKI DEMO icin optimize edilmis default'lar:
+        DeclareLaunchArgument('headless', default_value='true',
+                              description="Gazebo GUI gizle (WSL: true onerilir, "
+                                          "surface budget RViz icin korunur)."),
+        DeclareLaunchArgument('rviz', default_value='true',
+                              description="RViz ac (harita + plan + lidar gorulur)."),
         DeclareLaunchArgument('render_engine', default_value='ogre',
                               description="Gazebo render engine (WSL: ogre, Pi: ogre2)."),
         DeclareLaunchArgument('local_planner', default_value='dwb',
@@ -53,9 +53,12 @@ def generate_launch_description():
         DeclareLaunchArgument('slam_mode', default_value='mapping',
                               description="mapping veya localization."),
         DeclareLaunchArgument(
-            'autonomous_mode', default_value='avoider',
-            description="Suris modu: 'avoider' (reaktif, default) | "
-                        "'nav2' (goal-based) | 'off' (sadece perception)."),
+            'autonomous_mode', default_value='nav2',
+            description="Suris modu: 'nav2' (default, goal-based + planlama) | "
+                        "'avoider' (reaktif) | 'off' (sadece perception)."),
+        DeclareLaunchArgument('enable_octomap', default_value='true',
+                              description="3D octomap server (tezdeki 3-eksenli "
+                                          "haritalama). Headless Gazebo'da problem yok."),
 
         # Gazebo + URDF + bridge + rviz
         IncludeLaunchDescription(
@@ -77,6 +80,7 @@ def generate_launch_description():
                 'local_planner': local_planner,
                 'slam_mode': slam_mode,
                 'enable_nav2': enable_nav2,
+                'enable_octomap': enable_octomap,
             }.items(),
         ),
 
@@ -89,22 +93,21 @@ def generate_launch_description():
         ),
 
         # cmd_vel relay — autonomous_mode'a gore source secimi:
-        #   avoider  -> /cmd_vel_nav (avoider hazard_state okuyup ic safety yapar)
-        #   nav2     -> /cmd_vel_safe (full safety chain: collision_monitor +
-        #                              safety_supervisor)
+        #   nav2     -> /cmd_vel_safe (full safety chain)
+        #   avoider  -> /cmd_vel_nav  (avoider hazard_state okuyup ic safety yapar)
         #   off      -> /cmd_vel_safe (teleop_safe.sh kullanir)
-        Node(
-            package='topic_tools', executable='relay',
-            name='cmd_vel_relay', output='log',
-            arguments=['/cmd_vel_nav', '/cmd_vel'],
-            condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
-            parameters=[{'use_sim_time': True}],
-        ),
         Node(
             package='topic_tools', executable='relay',
             name='cmd_vel_relay', output='log',
             arguments=['/cmd_vel_safe', '/cmd_vel'],
             condition=LaunchConfigurationEquals('autonomous_mode', 'nav2'),
+            parameters=[{'use_sim_time': True}],
+        ),
+        Node(
+            package='topic_tools', executable='relay',
+            name='cmd_vel_relay', output='log',
+            arguments=['/cmd_vel_nav', '/cmd_vel'],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
             parameters=[{'use_sim_time': True}],
         ),
         Node(
