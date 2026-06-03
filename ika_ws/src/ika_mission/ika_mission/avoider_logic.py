@@ -49,8 +49,10 @@ class AvoiderState:
     avoid_direction: int = 0             # +1 sol, -1 sag, 0 yok
 
 
-# Hazard action degerlerini fusion node uretir; bunlar kacisi tetikler.
-HAZARD_BLOCKING = {"STOP", "SLOW"}
+# Hazard action degerlerini fusion node uretir.
+# SADECE STOP avoider'i kacis moduna sokar. SLOW "yavasla" demek; rampa/eğim
+# nedeniyle terrain bazen SLOW gonderir, robot bunu engel sanmamali.
+HAZARD_BLOCKING = {"STOP"}
 
 
 def wrap_pi(angle: float) -> float:

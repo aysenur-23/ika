@@ -23,12 +23,12 @@ def generate_launch_description():
             name='obstacle_avoider', output='screen',
             parameters=[{
                 'use_sim_time': use_sim_time,
-                'forward_speed_mps': 0.20,
-                'turn_speed_rps': 0.5,
-                'obstacle_distance_m': 0.80,
-                'front_arc_deg': 60.0,
-                'target_distance_m': 10000.0,  # pratikte sonsuz — robot durmasın, sürekli sürsün
-                'yaw_tolerance_rad': 0.05,
+                'forward_speed_mps': 0.25,       # max guvenli hiz (encoder eklenince artirilabilir)
+                'turn_speed_rps': 0.6,
+                'obstacle_distance_m': 0.50,    # 0.80 -> 0.50 (uzaktan engelleri pas geç)
+                'front_arc_deg': 40.0,          # 60 -> 40 (dar ön, yan engelleri görmez)
+                'target_distance_m': 10000.0,   # pratikte sonsuz — durmadan sür
+                'yaw_tolerance_rad': 0.15,      # gevsek (realigning'de takilmasin)
                 'control_rate_hz': 20.0,
                 'start_delay_s': 3.0,
             }],
