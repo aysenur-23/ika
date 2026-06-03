@@ -71,6 +71,27 @@ Visualization Manager:
         Value: /odometry/filtered
       Position Tolerance: 0.05
       Angle Tolerance: 0.05
+    - Class: rviz_default_plugins/Path
+      Name: Global Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+      Color: 25; 255; 0
+      Line Width: 0.05
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+      Color: 255; 100; 0
+      Line Width: 0.04
+    - Class: rviz_default_plugins/Path
+      Name: DWB Trajectories
+      Enabled: false
+      Topic:
+        Value: /received_global_plan
+      Color: 0; 150; 255
+      Line Width: 0.02
   Global Options:
     Fixed Frame: map
   Tools:

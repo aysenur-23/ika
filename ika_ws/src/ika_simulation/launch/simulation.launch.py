@@ -31,7 +31,9 @@ def generate_launch_description():
     world_path = PathJoinSubstitution([ika_sim, 'worlds', 'test_world.sdf'])
     xacro_path = PathJoinSubstitution([ika_desc, 'urdf', 'ika.urdf.xacro'])
     bridge_yaml = PathJoinSubstitution([ika_sim, 'config', 'ros_gz_bridge.yaml'])
-    rviz_cfg = PathJoinSubstitution([ika_desc, 'rviz', 'ika_view.rviz'])
+    # Full sim config: Map + Costmaps + Global Plan + Local Plan + LaserScan + TF
+    rviz_cfg = PathJoinSubstitution([
+        FindPackageShare('ika_bringup'), 'rviz', 'ika_full.rviz'])
 
     headless = LaunchConfiguration('headless')
     use_rviz = LaunchConfiguration('rviz')
