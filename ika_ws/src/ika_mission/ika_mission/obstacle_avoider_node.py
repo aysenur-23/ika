@@ -75,7 +75,9 @@ class ObstacleAvoiderNode(Node):
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
         )
         self.create_subscription(LaserScan, '/scan', self._on_scan, qos_sensor)
-        self.create_subscription(Odometry, '/odometry/filtered', self._on_odom, 10)
+        # /odom (rf2o lidar odom) — EKF /odometry/filtered yayinlamiyorsa
+        # bile bu akar. Avoider yaw'i icin yeterli.
+        self.create_subscription(Odometry, '/odom', self._on_odom, 10)
         self.create_subscription(String, '/hazard_state', self._on_hazard, 10)
 
         self._pub_cmd = self.create_publisher(Twist, '/cmd_vel_nav', 10)

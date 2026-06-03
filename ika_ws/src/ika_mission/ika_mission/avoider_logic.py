@@ -141,9 +141,8 @@ def decide(state: AvoiderState,
             new.phase = AvoiderPhase.AVOIDING
             reason = (f"DRIVING->AVOIDING (min_r={min_r:.2f}m, "
                       f"hazard={hazard_action}, dir={new.avoid_direction:+d})")
-            # Donus baslangici: yavas ileri + don (yay ciz, engelin yan tarafina)
-            return AvoiderCommand(cfg.forward_speed_mps * 0.3,
-                                  cfg.turn_speed_rps * new.avoid_direction,
+            # Yerinde don (engele bastirma; yan hareket onu daha cok itiyordu)
+            return AvoiderCommand(0.0, cfg.turn_speed_rps * new.avoid_direction,
                                   new, reason)
         # Engelsiz: hizla ilerle, mesafe say
         new.distance_clear_m = state.distance_clear_m + max(odom_delta_m, 0.0)
@@ -156,15 +155,17 @@ def decide(state: AvoiderState,
 
     if state.phase == AvoiderPhase.AVOIDING:
         if blocked:
-            # Engel hala onumde -> YAVAS ILERI + DON (yay ciz)
-            # Yerine donme yerine yan hareket: robot engelin etrafindan
-            # spiralle gecer, takılmaz.
-            return AvoiderCommand(cfg.forward_speed_mps * 0.3,
-                                  cfg.turn_speed_rps * state.avoid_direction,
-                                  new, "AVOIDING (still blocked)")
-        # On temiz -> ev yonune dogrultmaya gec
-        new.phase = AvoiderPhase.REALIGNING
-        return AvoiderCommand(0.0, 0.0, new, "AVOIDING->REALIGNING")
+            # Engel hala onumde -> YERINDE DON (engele bastirma)
+            return AvoiderCommand(0.0, cfg.turn_speed_rps * state.avoid_direction,
+                                  new, "AVOIDING")
+        # On temiz -> yeni heading'i kabul et, DRIVING'e dogrudan gec
+        # (REALIGNING ev yonune donmeye calisirken engele tekrar yaklasiyordu;
+        # daha pragmatik: kacindiktan sonra robot mevcut yonle devam etsin)
+        new.phase = AvoiderPhase.DRIVING
+        new.home_yaw = current_yaw  # yeni heading
+        new.avoid_direction = 0
+        return AvoiderCommand(cfg.forward_speed_mps, 0.0, new,
+                              "AVOIDING->DRIVING (new heading)")
 
     if state.phase == AvoiderPhase.REALIGNING:
         yaw_err = wrap_pi(state.home_yaw - current_yaw)
