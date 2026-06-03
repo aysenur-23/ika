@@ -63,6 +63,11 @@ def generate_launch_description():
             'enable_nav2', default_value='true',
             description="Nav2 controller/planner/bt zincirini yukle. "
                         "Avoider modunda 'false' (otomatik tam-reaktif suris)."),
+        DeclareLaunchArgument(
+            'enable_octomap', default_value='false',
+            description="3D octomap_server'i yukle. WSL'de default false "
+                        "(WSLg surface budget'i Gazebo GUI'yi COPY MODE'a "
+                        "dusuruyor). Pi'de true verilebilir."),
 
         # Lidar odom
         Node(
@@ -190,6 +195,7 @@ def generate_launch_description():
         # 3D harita gosterimi icin yeterli.
         Node(package='octomap_server', executable='octomap_server_node',
              name='octomap_server', output='log',
+             condition=IfCondition(LaunchConfiguration('enable_octomap')),
              parameters=[{
                  'use_sim_time': use_sim_time,
                  'resolution': 0.10,
