@@ -95,46 +95,58 @@
       </link>
     </model>
 
-    <!-- =========================  ENGEL 1 — Kirmizi kutu (3, 0)  ========================= -->
+    <!-- =========================  ENGEL DUZENI  =========================
+         Robot start (0,0) +X. Engeller carpan zigzag pattern:
+           obs_1 (3.0, 0)    y=0      — robot karar verir (sag/sol)
+           obs_2 (5.5, +0.4) saga kayik — robot SOLA donmek zorunda
+           obs_3 (8.0, -0.4) sola kayik — robot SAGA donmek zorunda
+           obs_4 (10.5, 0)   yaya y=0  — yaya kacinma demo
+           obs_5 (13.5, +0.3) saga kayik — robot SOLA
+           obs_6 (16.0, 0)   final engel
+         Boyutlar 0.40-0.60m kup/silindir — gorulebilir + makul detour.
+         Robot her engelde farkli yon kararı verir; demo cesitlilik kazanır.
+         ================================================================= -->
+
+    <!-- ENGEL 1 — Kirmizi kutu (3.0, 0) -->
     <model name="obs_1">
       <static>true</static>
-      <pose>3.0 0 0.25 0 0 0</pose>
+      <pose>3.0 0 0.20 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
+        <collision name="c"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.40 0.40 0.40</size></box></geometry>
           <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.90 0.25 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ENGEL 2 — Mavi kutu (6, 0)  ========================= -->
+    <!-- ENGEL 2 — Mavi kutu (5.5, +0.4) saga kayik -->
     <model name="obs_2">
       <static>true</static>
-      <pose>6.0 0 0.30 0 0 0</pose>
+      <pose>5.5 0.4 0.25 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.60 0.60 0.60</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.60 0.60 0.60</size></box></geometry>
+        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
           <material><ambient>0.20 0.30 0.80 1</ambient><diffuse>0.25 0.35 0.90 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ENGEL 3 — Sari silindir (9, 0)  ========================= -->
+    <!-- ENGEL 3 — Sari silindir (8.0, -0.4) sola kayik -->
     <model name="obs_3">
       <static>true</static>
-      <pose>9.0 0 0.35 0 0 0</pose>
+      <pose>8.0 -0.4 0.30 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>0.70</length></cylinder></geometry></collision>
-        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>0.70</length></cylinder></geometry>
+        <collision name="c"><geometry><cylinder><radius>0.22</radius><length>0.60</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.22</radius><length>0.60</length></cylinder></geometry>
           <material><ambient>0.95 0.85 0.20 1</ambient><diffuse>1.00 0.95 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ENGEL 4 — Yaya (12, 0)  ========================= -->
+    <!-- ENGEL 4 — Yaya (10.5, 0) -->
     <model name="obs_4_person">
       <static>true</static>
-      <pose>12.0 0 0.0 0 0 0</pose>
+      <pose>10.5 0 0.0 0 0 0</pose>
       <link name="link">
         <collision name="body"><pose>0 0 0.45 0 0 0</pose>
           <geometry><cylinder><radius>0.20</radius><length>0.90</length></cylinder></geometry></collision>
@@ -151,14 +163,26 @@
       </link>
     </model>
 
-    <!-- =========================  ENGEL 5 — Buyuk yesil kutu (15, 0)  ========================= -->
+    <!-- ENGEL 5 — Yesil kutu (13.5, +0.3) saga kayik -->
     <model name="obs_5">
       <static>true</static>
-      <pose>15.0 0 0.35 0 0 0</pose>
+      <pose>13.5 0.3 0.25 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.70 0.70 0.70</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.70 0.70 0.70</size></box></geometry>
+        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
           <material><ambient>0.20 0.65 0.30 1</ambient><diffuse>0.25 0.75 0.35 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ENGEL 6 — Buyuk turuncu kutu (16, 0) final -->
+    <model name="obs_6">
+      <static>true</static>
+      <pose>16.0 0 0.30 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.60 0.60 0.60</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.60 0.60 0.60</size></box></geometry>
+          <material><ambient>0.95 0.55 0.15 1</ambient><diffuse>1.00 0.65 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
