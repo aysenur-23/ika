@@ -13,27 +13,60 @@
   <xacro:property name="base_mass"       value="3.0"/>
   <xacro:property name="wheel_mass"      value="0.15"/>
 
-  <!-- Sensor montaj pozisyonlari (base_link merkezinden) -->
-  <xacro:property name="lidar_x"   value="0.15"/>
-  <xacro:property name="lidar_z"   value="0.12"/>
-  <xacro:property name="camera_x"  value="0.10"/>
-  <xacro:property name="camera_z"  value="0.15"/>
-  <xacro:property name="camera_pitch" value="0.15"/>   <!-- ~8.6 derece asagi -->
-  <xacro:property name="imu_z"     value="0.05"/>
-  <xacro:property name="gps_z"     value="0.18"/>
+  <!-- chassis_top_z: govde ust yuzeyinin base_link cercevesindeki z degeri.
+       Govde altı: wheel_radius + 0.005 (clearance) = 0.055
+       Govde ustu: govde alti + robot_height = 0.205
+       Sensorler govde ustune monte; z degerleri bu satira gore. -->
+  <xacro:property name="chassis_top_z" value="${wheel_radius + 0.005 + robot_height}"/>
 
-  <!-- Renkler -->
+  <!-- Sensor montaj pozisyonlari (base_link merkezinden):
+       lidar_z, camera_z vs hep govde ustu (chassis_top_z) + ufak ofset. -->
+  <xacro:property name="lidar_x"   value="0.05"/>
+  <xacro:property name="lidar_z"   value="${chassis_top_z + 0.080}"/>   <!-- 4cm yukseltildi: kamera/GPS plane disinda olsun -->
+  <xacro:property name="camera_x"  value="${robot_length/2 - 0.02}"/>   <!-- on yuze yakin -->
+  <xacro:property name="camera_z"  value="${chassis_top_z + 0.025}"/>
+  <xacro:property name="camera_pitch" value="0.15"/>                    <!-- ~8.6 derece asagi -->
+  <xacro:property name="imu_z"     value="${chassis_top_z + 0.005}"/>
+  <xacro:property name="gps_z"     value="${chassis_top_z + 0.008}"/>
+
+  <!-- =========  Renkler  =========
+       Her sensor ayri renkte; tez gorseli icin belirgin. -->
   <material name="ika_body">
-    <color rgba="0.2 0.4 0.7 1.0"/>
+    <color rgba="0.20 0.40 0.70 1.0"/>      <!-- Mavi govde -->
   </material>
   <material name="ika_wheel">
-    <color rgba="0.1 0.1 0.1 1.0"/>
+    <color rgba="0.10 0.10 0.10 1.0"/>      <!-- Siyah lastik -->
   </material>
+  <material name="ika_lidar_base">
+    <color rgba="0.92 0.92 0.92 1.0"/>      <!-- RPLIDAR beyaz govde -->
+  </material>
+  <material name="ika_lidar_top">
+    <color rgba="0.20 0.20 0.22 1.0"/>      <!-- Donen ust silindir koyu -->
+  </material>
+  <material name="ika_camera_body">
+    <color rgba="0.18 0.18 0.20 1.0"/>      <!-- OAK-D dark grey -->
+  </material>
+  <material name="ika_lens">
+    <color rgba="0.10 0.30 0.40 1.0"/>      <!-- Lens cam mavimsi -->
+  </material>
+  <material name="ika_imu">
+    <color rgba="0.30 0.55 0.30 1.0"/>      <!-- IMU yesil PCB -->
+  </material>
+  <material name="ika_gps_body">
+    <color rgba="0.70 0.18 0.20 1.0"/>      <!-- GPS govde kirmizi -->
+  </material>
+  <material name="ika_gps_antenna">
+    <color rgba="0.85 0.85 0.85 1.0"/>      <!-- Anten direği gümüş -->
+  </material>
+  <material name="ika_led_red">
+    <color rgba="1.0 0.10 0.10 1.0"/>       <!-- Kirmizi durum LED -->
+  </material>
+  <!-- Geri uyumluluk: eski isim referanslari icin -->
   <material name="ika_sensor">
-    <color rgba="0.8 0.2 0.2 1.0"/>
+    <color rgba="0.70 0.18 0.20 1.0"/>
   </material>
   <material name="ika_dark">
-    <color rgba="0.15 0.15 0.15 1.0"/>
+    <color rgba="0.18 0.18 0.20 1.0"/>
   </material>
 
   <!-- Yardimci makrolar -->

@@ -1,0 +1,87 @@
+# IKA Tez Senaryo Tanimlari
+# Her senaryo: parkurdaki bir istasyon/engel siniflandirmasi icin tek goal +
+# beklenen davranis. benchmarks/run_benchmark.py bunlari okuyup tek tek koşar.
+
+scenarios:
+  - id: s1_open_corridor
+    description: "Engelsiz koridor — baseline (Sinif 0)"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 1.0, y: 0.0}
+    obstacles_for_clearance: []
+    pass_criteria: {success: true, max_duration_s: 20}
+
+  - id: s2_ramp_climb
+    description: "Rampa tirmanma (Sinif 4) — terrain_state SAFE"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 4.5, y: 0.0}
+    obstacles_for_clearance: [[2.0, 0.0]]
+    pass_criteria: {success: true, max_duration_s: 60}
+
+  - id: s3_slalom_boxes
+    description: "Slalom 3 kutu (Sinif 1) — zigzag yorunge"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 6.5, y: 0.0}
+    obstacles_for_clearance: [[4.0, 0.7], [4.8, -0.7], [5.6, 0.7]]
+    pass_criteria: {success: true, max_duration_s: 60, min_clearance_m: 0.10}
+
+  - id: s4_narrow_passage
+    description: "Dar gecit (Sinif 6) — 0.8 m kapi"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 8.0, y: 0.0}
+    obstacles_for_clearance: [[7.0, 0.55], [7.0, -0.55]]
+    pass_criteria: {success: true, max_duration_s: 80, min_clearance_m: 0.05}
+
+  - id: s5_dynamic_pedestrian
+    description: "Yaya engel (Sinif 5) — SLOW/STOP davranisi"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 12.0, y: 0.0}
+    obstacles_for_clearance: [[11.0, 0.6]]
+    pass_criteria: {success: true, max_duration_s: 100, num_recoveries_max: 2}
+
+  - id: s6_negative_obstacle
+    description: "Negatif engel — RANSAC DROPOFF_DANGER"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 14.0, y: 0.0}
+    obstacles_for_clearance: [[13.0, 0.0]]
+    pass_criteria: {success: true, max_duration_s: 120}
+
+  - id: s7_dead_end_l_corridor
+    description: "L-tipi kor koridor (Sinif 6 ileri) — geri donus + alt rota"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 16.0, y: 0.0}
+    obstacles_for_clearance: [[15.0, -0.6], [15.8, -0.05]]
+    pass_criteria: {success: true, max_duration_s: 150, num_recoveries_max: 3}
+
+  - id: s8_full_course
+    description: "Tum parkur basindan sonuna (Start -> Finish)"
+    start: {x: 0.0, y: 0.0, yaw: 0.0}
+    goal:  {x: 18.0, y: 0.0}
+    obstacles_for_clearance: [
+      [2.0, 0.0], [4.0, 0.7], [4.8, -0.7], [5.6, 0.7],
+      [7.0, 0.55], [7.0, -0.55], [9.0, -0.4], [9.3, 0.5],
+      [11.0, 0.6], [13.0, 0.0], [15.0, -0.6], [15.8, -0.05]
+    ]
+    pass_criteria: {success: true, max_duration_s: 300}
+
+# Karsilastirma eksenleri (her senaryo X kombinasyonda kosulur)
+modes:
+  - id: avoider
+    description: "Reaktif (ika_mission/obstacle_avoider)"
+    launch_args: {autonomous_mode: avoider}
+  - id: nav2_dwb
+    description: "Nav2 + DWB klasik"
+    launch_args: {autonomous_mode: nav2, local_planner: dwb}
+  - id: nav2_mppi
+    description: "Nav2 + MPPI optimizasyon"
+    launch_args: {autonomous_mode: nav2, local_planner: mppi}
+
+# Her kombinasyon icin trial sayisi (rastgele start jitter ile)
+trials_per_combo: 5
+
+# Cikti dosyalari (benchmarks/results/ altinda)
+output:
+  raw_csv: results/raw_runs.csv
+  summary_md: results/summary.md
+  summary_tex: results/summary.tex
+  trajectories_dir: results/trajectories
+  plots_dir: results/plots

@@ -71,27 +71,126 @@ Bellek: `project_ika_wsl_simulation.md`.
 - `project_ika_wsl_simulation.md` (yeni) — WSL akışı
 - `MEMORY.md` indexi yenilendi
 
+### Onboarding + commit
+
+- `CLAUDE.md` (yeni) — yeni Claude oturumu için kalıcı bağlam
+- `ILERLEME.md` (bu dosya) — canlı durum
+- Commit `ddca30c` `cacb118..ddca30c` origin/main'e push edildi
+- WSL ~/ika senkron (git pull --ff-only)
+
 ---
 
 ## 🔄 Şu An Aktif
 
-**Tez için iki paralel iş hattı kuruluyor:**
+### Parkur tasarımı (yeni)
+
+**Tez parkuru tasarlandı + kodlandı.** `test_world.sdf` baştan yazıldı: 18 m
+uzun × 6 m geniş, 8 istasyonlu doğrusal parkur. Her istasyon 1 engel sınıfı.
+Yeşil başlangıç + kırmızı bitiş kemerleri, sınır duvarları, istasyon levhaları.
+
+URDF sensörleri tezde belirgin: lidar pucku büyütüldü, kamera prominent
++ lens noktaları, **GPS göbeği + gümüş anten direği + kırmızı LED ucu**, IMU
+yeşil PCB. Her sensör ayrı renkte.
+
+**İkinci tur düzeltmeler (kullanıcı geri bildirimi sonrası):**
+- Tekerlekler "uçmuş" görünüyordu çünkü gövde z-pozisyonu tekerlek aksıyla
+  aynı seviyedeydi. `chassis_z` introduced (`wheel_radius + clearance +
+  robot_height/2`); gövde artık tekerleklerin 5 mm üstünde oturuyor.
+- Sensörlerin gövde içinde kalmaması için `chassis_top_z` referansı eklendi;
+  tüm sensör z'leri buna göre hesaplanıyor (gövdenin tam üstünde).
+- Parkurda **22 parlak yeşil yol oku** zemine eklendi — robotun gideceği rota
+  görsel olarak belli (slalom zigzag, pit platform güneyden, L-koridor
+  kuzeyden dolanış).
+
+**Üçüncü tur (boş viewport → pencere görünmüyor sorun ikilisi):**
+- İlk denedik: `<render_engine>ogre2</render_engine>` world'den kaldırıldı,
+  CLI'dan ogre1 ver. Sonuç: hem GUI hem sensör OGRE1'de, WSLg surface budget
+  yetmedi, pencere taskbar'da göründü ama foreground'a gelmedi.
+- Doğru kombinasyon (önceki çalışan halinin nedeni):
+  - **GUI render engine: OGRE1** (CLI'dan, WSL pencere görünürlük için)
+  - **Sensors render engine: OGRE2** (world'de hardcode, sensör backend ayrı)
+- Bu mod sensör verisi yayımlamaz (OGRE2 sensör thread WSL'de "Waiting for
+  init"'te takılır, bilinen WSLg bug'ı) ama **Gazebo penceresi görünür** →
+  tezdeki visual screenshot için yeterli.
+
+**Operasyonel üç-mod kararı (WSL) — TEST EDİLDİ:**
+| Mod | Komut özü | Gazebo GUI | RViz | Sensör | Kod | Doğrulama |
+|---|---|:-:|:-:|:-:|:-:|---|
+| **A — Tez görseli** | `simulation.launch.py headless:=false rviz:=false render_engine:=ogre` | ✅ | ❌ | belirsiz | ❌ | parkur screenshot için |
+| **B — Geliştirme** | `sim_full.launch.py headless:=true rviz:=true` | ❌ | ✅ | ✅ | ✅ | algoritma debugging |
+| **C — Gazebo'da kod** | `sim_full.launch.py headless:=false rviz:=false render_engine:=ogre` | ✅ | ❌ | ✅ | ✅ | **/scan 8.6 Hz ✅** |
+
+Mod C 2026-06-02 doğrulandı: WSL'de Gazebo penceresi açık + Nav2 + safety +
+fusion + terrain + slam_toolbox arka planda çalışıyor + sensörler yayımlıyor.
+Tez demo video/screenshot için ideal mod — robotu Gazebo'da gerçek-zamanlı
+gösterip kodun davranışını görüntülerle anlatabilirsin.
+
+**Mod C ilk koşum bug'ları (düzeltildi):**
+- `nav2_params.yaml` bt_navigator config'i Humble-style idi (plugin_lib_names
+  uzun liste, navigators eksik). Jazzy zorunlu kıldı `navigators` +
+  `navigate_to_pose` + `navigate_through_poses` plugin mapping. bt_navigator
+  configure aşamasında crash ediyordu → /goal_pose abonesi yoktu, Nav2 zinciri
+  kırılıyordu.
+- slam_toolbox lifecycle_manager_navigation listesinde değildi →
+  `unconfigured` kalıyordu, harita üretmiyordu. Listeye eklendi.
+- collision_monitor önceden `unconfigured` görünüyordu çünkü bt_navigator
+  çökünce lifecycle_manager autostart sırası duruyordu; bt_navigator fix
+  sonrası collision_monitor da configure oluyor.
+
+Pi'de ise üçü de tek modda (native GUI sorunsuz, sim_full headless:=false
+rviz:=true ile hem Gazebo hem RViz açık).
+
+Dökümantasyon: `docs/parkur_haritasi.md` — şema + istasyon tablosu + tez
+figürü adlandırması + kamera açısı önerileri.
+
+Build doğrulandı (WSL): URDF 16 gazebo tag, world 64 model (42 obstacle +
+22 path arrow). Sıradaki: kullanıcı OGRE1 sim'i yeniden başlatıp görsel
+onayı verecek.
+
+**Tez için iki paralel iş hattı:**
 
 ### Hat 1 — Tez görseli (Gazebo + RViz screenshot)
 
 - OGRE1 + Gazebo GUI tek başına ✅ çalıştığı doğrulandı
-- ⏳ **Sıradaki test:** OGRE1 + Gazebo + RViz aynı anda açılıyor mu? (`render_engine:=ogre rviz:=true`)
-  - Çalışırsa: tek koşumda hem Gazebo sahnesi hem RViz görseli alınabilir
-  - Çalışmazsa: ayrı koşumlar, screenshot'lar birleştirilir
-- ⏳ Screenshot scenaryolarının listesi (her tez bölümü için 1-2 görsel)
+- ⏳ Yeni parkurla görsel onayı (rampa, slalom, koridor, vs. doğru yerlerde mi)
+- ⏳ Her istasyona kuş-bakışı screenshot — 8 figür için
+- ⏳ Robot eş-açı portresi (sensör yerleşimi tezde figürü)
 
-### Hat 2 — Benchmark / karşılaştırma altyapısı
+### Hat 2 — Benchmark / karşılaştırma altyapısı ✅ KURULDU
 
-- Mevcut: `ika_rl_planner/metrics_recorder_node` tek-run CSV satırı yazıyor
-- ⏳ `benchmarks/` dizini açılacak (proje kökünde)
-- ⏳ `benchmarks/scenarios.yaml` — 7 engel sınıfı senaryoları
-- ⏳ `benchmarks/run_benchmark.py` — N-trial wrapper
-- ⏳ `benchmarks/render_tables.py` — CSV → md/LaTeX + matplotlib plot
+- ✅ `benchmarks/scenarios.yaml` — 8 senaryo × 3 mod × 5 trial = 120 koşum
+- ✅ `benchmarks/run_benchmark.py` — auto-launch + trajectory recorder + metric
+- ✅ `benchmarks/render_tables.py` — Markdown + LaTeX + matplotlib (4 plot turu)
+- ✅ `benchmarks/README.md` — kullanım kılavuzu
+
+Modlar: `avoider` (reaktif), `nav2_dwb` (klasik), `nav2_mppi` (optimizasyon).
+Çıktılar: `results/raw_runs.csv`, `results/summary.{md,tex}`, `results/plots/`.
+
+### Hat 3 — Otonom davranış + algı + 3D haritalama ✅ KURULDU
+
+**Avoider node** (reactive obstacle avoidance, kullanıcı spec):
+- `ika_mission/avoider_logic.py` — saf-Python karar makinesi (DRIVING/AVOIDING
+  /REALIGNING/DONE). 17/17 birim test geçti.
+- `ika_mission/obstacle_avoider_node.py` — ROS lifecycle sarmal.
+- `sim_full.launch.py autonomous_mode:=avoider|nav2|off` — default `avoider`.
+
+**EKF füzyon güncellemesi:**
+- Önceden sadece IMU + lidar odom füzyonu vardı.
+- ✅ GPS girdisi eklendi (`odom1: /odometry/gps`) → navsat_transform_node
+  çıktısı EKF'e geri yansır → konum sürüklemesi telafisi.
+
+**DL detection sim'de aktif:**
+- ✅ `navigation.launch.py` sim'de `sim_detection_node` başlatır (ground-truth
+  tabanlı sentetik person/chair/bicycle/car).
+- ✅ Gerçek robotta `dl_perception_node` (OAK-D), conditionally launched.
+- lifecycle_manager_ika sim/gerçek için ayrı node listesi.
+
+**3D Octomap server:**
+- ✅ `navigation.launch.py`'a eklendi. `/oak/points` → `/octomap_full` (3D
+  occupancy octree).
+- WSL'de `sudo apt install ros-jazzy-octomap-server` gerekli (Pi'de
+  install_pi.sh'a eklenecek).
+- RViz'de "OccupancyGrid (3D)" display ile görüntülenir.
 
 ---
 

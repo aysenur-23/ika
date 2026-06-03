@@ -10,23 +10,37 @@
     <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
   </joint>
 
-  <!-- base_link: arac govdesi -->
+  <!-- base_link: arac govdesi.
+       NOT: base_link tekerlek aksi yuksekliginde (base_footprint_joint
+       z=wheel_radius). Govdeyi tekerlekler USTUNE yerlestirmek icin
+       visual/collision z offset = wheel_radius + clearance + robot_height/2.
+       Boylece govdenin altı tekerlek ust kenarinin biraz uzerinde durur,
+       tekerlekler gozle goruluyor olur. -->
+  <xacro:property name="chassis_clearance" value="0.005"/>
+  <xacro:property name="chassis_z" value="${wheel_radius + chassis_clearance + robot_height/2}"/>
+
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 ${robot_height/2}"/>
+      <origin xyz="0 0 ${chassis_z}"/>
       <geometry>
         <box size="${robot_length} ${robot_width} ${robot_height}"/>
       </geometry>
       <material name="ika_body"/>
     </visual>
     <collision>
-      <origin xyz="0 0 ${robot_height/2}"/>
+      <origin xyz="0 0 ${chassis_z}"/>
       <geometry>
         <box size="${robot_length} ${robot_width} ${robot_height}"/>
       </geometry>
     </collision>
-    <xacro:box_inertial mass="${base_mass}"
-                       x="${robot_length}" y="${robot_width}" z="${robot_height}"/>
+    <inertial>
+      <mass value="${base_mass}"/>
+      <origin xyz="0 0 ${chassis_z}"/>
+      <inertia
+        ixx="${base_mass*(robot_width*robot_width + robot_height*robot_height)/12.0}" ixy="0" ixz="0"
+        iyy="${base_mass*(robot_length*robot_length + robot_height*robot_height)/12.0}" iyz="0"
+        izz="${base_mass*(robot_length*robot_length + robot_width*robot_width)/12.0}"/>
+    </inertial>
   </link>
 
   <!-- 4 teker makrosu -->

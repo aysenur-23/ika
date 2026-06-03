@@ -5,9 +5,9 @@ SLAM modu argumana bagli:
   slam_mode:=localization  (mevcut harita uzerinde)
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition, LaunchConfigurationEquals
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.conditions import IfCondition, LaunchConfigurationEquals, UnlessCondition
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -32,7 +32,17 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     slam_mode = LaunchConfiguration('slam_mode')
     local_planner = LaunchConfiguration('local_planner')
+    enable_nav2 = LaunchConfiguration('enable_nav2')
 
+    # NEDEN 2 AYRI LIFECYCLE_MANAGER:
+    # slam_toolbox aktif olduktan sonra map_frame transform yayinlamasi
+    # icin 3-5 sn lazim. lifecycle_manager autostart hemen siradakini
+    # aktive eder, controller_server bu siralamada map_frame bulamayip
+    # CONFIGURE_FAILURE'a duser ve lifecycle_manager zinciri durdurur.
+    # Cozum: slam icin ayri lifecycle_manager (hemen baslar), Nav2 icin
+    # ayri (TimerAction ile 10 sn gecikmeli baslar, o zaman slam haritayi
+    # yayinlamis olur).
+    slam_lifecycle_nodes = ['slam_toolbox']
     nav2_lifecycle_nodes = [
         'controller_server',
         'planner_server',
@@ -49,6 +59,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'local_planner', default_value='dwb',
             description="Yerel planlayici: 'dwb' (klasik) veya 'mppi' (tez karsilastirmasi)"),
+        DeclareLaunchArgument(
+            'enable_nav2', default_value='true',
+            description="Nav2 controller/planner/bt zincirini yukle. "
+                        "Avoider modunda 'false' (otomatik tam-reaktif suris)."),
 
         # Lidar odom
         Node(
@@ -89,51 +103,108 @@ def generate_launch_description():
             parameters=[slam_yaml, {'use_sim_time': use_sim_time, 'mode': 'localization'}],
         ),
 
-        # Nav2 core
+        # Nav2 core (enable_nav2=true ise yuklenir; avoider modunda 'false')
         # controller_server - klasik DWB (varsayilan)
         Node(package='nav2_controller', executable='controller_server',
              name='controller_server', output='screen',
-             condition=LaunchConfigurationEquals('local_planner', 'dwb'),
+             condition=IfCondition(PythonExpression([
+                 "'", local_planner, "' == 'dwb' and '", enable_nav2, "' == 'true'"])),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
-        # controller_server - MPPI (tez karsilastirmasi). mppi_yaml, nav2_yaml
-        # uzerine yuklenip FollowPath bloğunu DWB -> MPPI olarak ezer.
+        # controller_server - MPPI (tez karsilastirmasi)
         Node(package='nav2_controller', executable='controller_server',
              name='controller_server', output='screen',
-             condition=LaunchConfigurationEquals('local_planner', 'mppi'),
+             condition=IfCondition(PythonExpression([
+                 "'", local_planner, "' == 'mppi' and '", enable_nav2, "' == 'true'"])),
              parameters=[nav2_yaml, mppi_yaml, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_planner', executable='planner_server',
              name='planner_server', output='screen',
+             condition=IfCondition(enable_nav2),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_behaviors', executable='behavior_server',
              name='behavior_server', output='screen',
+             condition=IfCondition(enable_nav2),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_bt_navigator', executable='bt_navigator',
              name='bt_navigator', output='screen',
+             condition=IfCondition(enable_nav2),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_collision_monitor', executable='collision_monitor',
              name='collision_monitor', output='screen',
+             condition=IfCondition(enable_nav2),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
 
-        # Nav2 lifecycle
+        # SLAM lifecycle - HEMEN baslar, slam_toolbox'i aktive eder
         Node(
             package='nav2_lifecycle_manager', executable='lifecycle_manager',
-            name='lifecycle_manager_navigation', output='screen',
+            name='lifecycle_manager_slam', output='screen',
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'autostart': True,
-                'node_names': nav2_lifecycle_nodes,
+                'node_names': slam_lifecycle_nodes,
             }],
+        ),
+
+        # Nav2 lifecycle - 10 SN GECIKMELI baslar (enable_nav2=true ise).
+        # Bu sirada slam_toolbox map_frame yayinlamis olur, controller/planner
+        # costmap'leri init ederken transform bulur.
+        TimerAction(
+            period=10.0,
+            actions=[Node(
+                package='nav2_lifecycle_manager', executable='lifecycle_manager',
+                name='lifecycle_manager_navigation', output='screen',
+                condition=IfCondition(enable_nav2),
+                parameters=[{
+                    'use_sim_time': use_sim_time,
+                    'autostart': True,
+                    'node_names': nav2_lifecycle_nodes,
+                }],
+            )],
         ),
 
         # IKA ozel node'lari (veri akisi: terrain + DL -> fusion -> safety)
         Node(package='ika_terrain', executable='terrain_perception_node',
              name='terrain_perception', output='screen',
              parameters=[terrain_yaml, {'use_sim_time': use_sim_time}]),
-        # DL nesne tespiti (OAK-D VPU). depthai/kamera yoksa fail-safe no-op
-        # (orn. sim'de) - lifecycle aktivasyonunu bloklamaz.
+        # DL nesne tespiti — gerçek robotta OAK-D ile çalışır.
         Node(package='ika_perception_dl', executable='dl_perception_node',
              name='dl_perception', output='screen',
+             condition=UnlessCondition(use_sim_time),
              parameters=[dl_yaml, {'use_sim_time': use_sim_time}]),
+        # Sim sentetik DL tespiti: world ground-truth'tan /detected_objects
+        # üretir (test_world.sdf icinde person/chair/bicycle/car sahnesi).
+        Node(package='ika_perception_dl', executable='sim_detection_node',
+             name='sim_detection', output='screen',
+             condition=IfCondition(use_sim_time),
+             parameters=[
+                 PathJoinSubstitution([
+                     FindPackageShare('ika_perception_dl'),
+                     'config', 'sim_detection_params.yaml']),
+                 {'use_sim_time': use_sim_time},
+             ]),
+
+        # 3D Occupancy mapping (octomap) - derinlik bulutundan 3B harita.
+        # Ground filter KAPALI (filter_ground_plane=false) — yeniden ac'mak
+        # icin base_frame_id ve camera_depth_optical_frame TF tree'de baglanti
+        # gerekli; sim'de RGBD kamera frame'i ayri tree'de oldugu icin segfault
+        # ediyordu. RViz'de tum noktalari occupied gorur, yer dahil — tezdeki
+        # 3D harita gosterimi icin yeterli.
+        Node(package='octomap_server', executable='octomap_server_node',
+             name='octomap_server', output='log',
+             parameters=[{
+                 'use_sim_time': use_sim_time,
+                 'resolution': 0.10,
+                 'frame_id': 'map',
+                 'base_frame_id': 'base_footprint',
+                 'sensor_model.max_range': 6.0,
+                 'sensor_model.hit': 0.7,
+                 'sensor_model.miss': 0.4,
+                 'sensor_model.min': 0.12,
+                 'sensor_model.max': 0.97,
+                 'pointcloud_min_z': 0.05,
+                 'pointcloud_max_z': 2.0,
+                 'filter_ground_plane': False,
+             }],
+             remappings=[('cloud_in', '/oak/points')]),
         # Hibrit fuzyon: terrain + DL -> /hazard_state + /detection_obstacles
         Node(package='ika_fusion', executable='fusion_node',
              name='hazard_fusion', output='screen',
@@ -142,10 +213,26 @@ def generate_launch_description():
              name='safety_supervisor', output='screen',
              parameters=[safety_yaml, {'use_sim_time': use_sim_time}]),
 
-        # IKA lifecycle manager
+        # IKA lifecycle manager - sim'de dl_perception YOK (sim_detection plain
+        # Node, lifecycle disindadir). Gercek robotta dl_perception eklenir.
         Node(
             package='nav2_lifecycle_manager', executable='lifecycle_manager',
             name='lifecycle_manager_ika', output='screen',
+            condition=IfCondition(use_sim_time),
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'autostart': True,
+                'node_names': [
+                    'terrain_perception',
+                    'hazard_fusion',
+                    'safety_supervisor',
+                ],
+            }],
+        ),
+        Node(
+            package='nav2_lifecycle_manager', executable='lifecycle_manager',
+            name='lifecycle_manager_ika', output='screen',
+            condition=UnlessCondition(use_sim_time),
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'autostart': True,

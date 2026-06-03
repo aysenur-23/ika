@@ -170,6 +170,26 @@ Pi'de: `colcon test --packages-select ika_terrain ika_perception_dl ika_fusion i
   Gerçek robotta DL detector + IPM (yer-düzlemi projeksiyonu, z=0).
 - Lidar SLAMTEC RPLIDAR C1 — 2B, negatif engel göremez.
 - Encoder yok — odometri `rf2o_laser_odometry`.
+- **EKF füzyon kaynakları:**
+  - odom0: `/odom` (rf2o lidar odom) — x,y,yaw
+  - imu0: `/imu/data` (BNO055) — roll/pitch/yaw + angular vel + accel_x
+  - odom1: `/odometry/gps` (navsat_transform'dan) — x,y düzeltme (drift telafisi)
+- **DL detector (MobileNet-SSD VOC):** person/bicycle/car/bus/motorbike/dog/cat
+  /horse/cow/sheep/bird → DYNAMIC; chair/sofa/diningtable/pottedplant/bottle
+  /tvmonitor → STATIC. `sim_detection_node` sim'de ground-truth tabanlı
+  sentetik tespit üretir.
+- **3D Harita (octomap_server):** `/oak/points` → 3D occupancy octree;
+  /octomap_full topic'inde yayınlanır.
+
+## Otonom Sürüş Modları (`sim_full.launch.py autonomous_mode:=...`)
+
+| Mod | Açıklama | Node | /cmd_vel_nav kaynak |
+|---|---|---|---|
+| `avoider` (default) | Bug-tarzı reaktif: ileri sür, engelde dön, 2m sonra dur | `ika_mission/obstacle_avoider` | reaktif |
+| `nav2` | Klasik goal-based Nav2 + DWB/MPPI | `controller_server` | planlanmış |
+| `off` | Sadece perception, manuel teleop | — | yok |
+
+Sim ve gerçek robotta aynı arg. Avoider hem WSL sim'de hem Pi'de test edildi.
 
 ---
 

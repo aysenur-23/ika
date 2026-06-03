@@ -1,41 +1,64 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- RPLIDAR C1 -->
+  <!-- =================================================================
+       Sensorler: tezde belirgin gorulecek sekilde olculer biraz buyutuldu,
+       her sensor ayri renk + GPS anteni eklendi.
+       ================================================================= -->
+
+  <!-- ==========  RPLIDAR C1 (govde 60 mm + uzeri silindir)  ========== -->
+  <!-- Gercek RPLIDAR C1: ~70 mm cap, beyaz govde, ust silindir donen
+       lazer kapagi (biraz daha ust silindirle taklit). -->
+  <link name="laser_base">
+    <visual>
+      <geometry>
+        <cylinder radius="0.045" length="0.030"/>
+      </geometry>
+      <material name="ika_lidar_base"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.045" length="0.030"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="0.05" r="0.045" l="0.030"/>
+  </link>
+  <joint name="laser_base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_base"/>
+    <origin xyz="${lidar_x} 0 ${lidar_z - 0.025}" rpy="0 0 0"/>
+  </joint>
+
   <link name="laser_frame">
     <visual>
       <geometry>
-        <cylinder radius="0.035" length="0.04"/>
+        <cylinder radius="0.040" length="0.025"/>
       </geometry>
-      <material name="ika_sensor"/>
+      <material name="ika_lidar_top"/>
     </visual>
-    <collision>
-      <geometry>
-        <cylinder radius="0.035" length="0.04"/>
-      </geometry>
-    </collision>
-    <xacro:cylinder_inertial mass="0.05" r="0.035" l="0.04"/>
+    <xacro:cylinder_inertial mass="0.02" r="0.040" l="0.025"/>
   </link>
   <joint name="laser_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="laser_base"/>
     <child link="laser_frame"/>
-    <origin xyz="${lidar_x} 0 ${lidar_z}" rpy="0 0 0"/>
+    <origin xyz="0 0 0.028" rpy="0 0 0"/>
   </joint>
 
-  <!-- OAK-D Lite gobegi -->
+  <!-- ==========  RGB-D KAMERA (OAK-D Lite govdesi + lens izleri)  ========== -->
+  <!-- Govde: yatay dikdortgen prizma, on yuze 2 lens noktasi (visual cue). -->
   <link name="camera_frame">
     <visual>
       <geometry>
-        <box size="0.09 0.025 0.025"/>
+        <box size="0.085 0.040 0.045"/>
       </geometry>
-      <material name="ika_dark"/>
+      <material name="ika_camera_body"/>
     </visual>
     <collision>
       <geometry>
-        <box size="0.09 0.025 0.025"/>
+        <box size="0.085 0.040 0.045"/>
       </geometry>
     </collision>
-    <xacro:box_inertial mass="0.06" x="0.09" y="0.025" z="0.025"/>
+    <xacro:box_inertial mass="0.08" x="0.085" y="0.040" z="0.045"/>
   </link>
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
@@ -43,7 +66,31 @@
     <origin xyz="${camera_x} 0 ${camera_z}" rpy="0 ${camera_pitch} 0"/>
   </joint>
 
-  <!-- Depth optical frame (ROS REP-103: x sag, y asagi, z ileri) -->
+  <!-- Lens noktalari (sol stereo + sag RGB) -->
+  <link name="camera_lens_left">
+    <visual>
+      <geometry><cylinder radius="0.008" length="0.005"/></geometry>
+      <material name="ika_lens"/>
+    </visual>
+  </link>
+  <joint name="camera_lens_left_joint" type="fixed">
+    <parent link="camera_frame"/>
+    <child link="camera_lens_left"/>
+    <origin xyz="0.044 0.025 0" rpy="0 1.5708 0"/>
+  </joint>
+  <link name="camera_lens_right">
+    <visual>
+      <geometry><cylinder radius="0.008" length="0.005"/></geometry>
+      <material name="ika_lens"/>
+    </visual>
+  </link>
+  <joint name="camera_lens_right_joint" type="fixed">
+    <parent link="camera_frame"/>
+    <child link="camera_lens_right"/>
+    <origin xyz="0.044 -0.025 0" rpy="0 1.5708 0"/>
+  </joint>
+
+  <!-- Derinlik optik cercevesi (ROS REP-103: x sag, y asagi, z ileri) -->
   <link name="camera_depth_optical_frame"/>
   <joint name="camera_depth_optical_joint" type="fixed">
     <parent link="camera_frame"/>
@@ -51,15 +98,16 @@
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
-  <!-- IMU -->
+  <!-- ==========  IMU (BNO055 kart)  ========== -->
+  <!-- Govde icine yakin, ust yuzeyde gorulebilen kucuk kart. -->
   <link name="imu_frame">
     <visual>
       <geometry>
-        <box size="0.02 0.02 0.005"/>
+        <box size="0.030 0.025 0.008"/>
       </geometry>
-      <material name="ika_dark"/>
+      <material name="ika_imu"/>
     </visual>
-    <xacro:box_inertial mass="0.005" x="0.02" y="0.02" z="0.005"/>
+    <xacro:box_inertial mass="0.008" x="0.030" y="0.025" z="0.008"/>
   </link>
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
@@ -67,20 +115,61 @@
     <origin xyz="0 0 ${imu_z}" rpy="0 0 0"/>
   </joint>
 
-  <!-- GPS -->
-  <link name="gps_frame">
+  <!-- ==========  GPS (NEO-M8N benzeri kart + anten direği)  ========== -->
+  <!-- Govde: yatay disk. Ust kismina aktif anten icin kucuk silindir +
+       LED isaret (kirmizi nokta). Bu tezde "robotta GPS var" gorsel ipucu. -->
+  <link name="gps_base">
     <visual>
       <geometry>
-        <cylinder radius="0.025" length="0.012"/>
+        <cylinder radius="0.035" length="0.012"/>
       </geometry>
-      <material name="ika_sensor"/>
+      <material name="ika_gps_body"/>
     </visual>
-    <xacro:cylinder_inertial mass="0.04" r="0.025" l="0.012"/>
+    <xacro:cylinder_inertial mass="0.04" r="0.035" l="0.012"/>
   </link>
-  <joint name="gps_joint" type="fixed">
+  <joint name="gps_base_joint" type="fixed">
     <parent link="base_link"/>
+    <child link="gps_base"/>
+    <origin xyz="-0.08 0 ${gps_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Anten direği -->
+  <link name="gps_antenna">
+    <visual>
+      <geometry>
+        <cylinder radius="0.005" length="0.080"/>
+      </geometry>
+      <material name="ika_gps_antenna"/>
+    </visual>
+  </link>
+  <joint name="gps_antenna_joint" type="fixed">
+    <parent link="gps_base"/>
+    <child link="gps_antenna"/>
+    <origin xyz="0 0 0.046" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LED isaret (anten ucu) -->
+  <link name="gps_led">
+    <visual>
+      <geometry>
+        <sphere radius="0.008"/>
+      </geometry>
+      <material name="ika_led_red"/>
+    </visual>
+  </link>
+  <joint name="gps_led_joint" type="fixed">
+    <parent link="gps_antenna"/>
+    <child link="gps_led"/>
+    <origin xyz="0 0 0.042" rpy="0 0 0"/>
+  </joint>
+
+  <!-- gps_frame: navsat plugin'in referans aldigi cerceve.
+       gps_base ile aynı pozda, ayrı isim. -->
+  <link name="gps_frame"/>
+  <joint name="gps_frame_joint" type="fixed">
+    <parent link="gps_base"/>
     <child link="gps_frame"/>
-    <origin xyz="-0.05 0 ${gps_z}" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
 </robot>

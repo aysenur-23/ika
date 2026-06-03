@@ -13,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'missions'), glob('missions/*.yaml')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools', 'pyyaml'],
     zip_safe=True,
@@ -24,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'gps_waypoint_mission = ika_mission.gps_waypoint_mission:main',
+            'obstacle_avoider = ika_mission.obstacle_avoider_node:main',
         ],
     },
 )
