@@ -92,6 +92,19 @@ Visualization Manager:
         Value: /received_global_plan
       Color: 0; 150; 255
       Line Width: 0.02
+    - Class: rviz_default_plugins/MarkerArray
+      Name: 3D Octomap (Markers)
+      Enabled: true
+      Topic:
+        Value: /occupied_cells_vis_array
+    - Class: rviz_default_plugins/PointCloud2
+      Name: 3D Octomap (Points)
+      Enabled: true
+      Topic:
+        Value: /octomap_point_cloud_centers
+      Size (m): 0.10
+      Color Transformer: AxisColor
+      Axis: Z
   Global Options:
     Fixed Frame: map
   Tools:
