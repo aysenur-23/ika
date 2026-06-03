@@ -78,10 +78,10 @@ modes:
 # Her kombinasyon icin trial sayisi (rastgele start jitter ile)
 trials_per_combo: 5
 
-# Cikti dosyalari (benchmarks/results/ altinda)
+# Cikti dosyalari (benchmarks/results/ ROOT'tan rölatif)
 output:
-  raw_csv: results/raw_runs.csv
-  summary_md: results/summary.md
-  summary_tex: results/summary.tex
-  trajectories_dir: results/trajectories
-  plots_dir: results/plots
+  raw_csv: raw_runs.csv
+  summary_md: summary.md
+  summary_tex: summary.tex
+  trajectories_dir: trajectories
+  plots_dir: plots
