@@ -49,10 +49,13 @@ class AvoiderState:
     avoid_direction: int = 0             # +1 sol, -1 sag, 0 yok
 
 
-# Hazard action degerlerini fusion node uretir.
-# SADECE STOP avoider'i kacis moduna sokar. SLOW "yavasla" demek; rampa/eğim
-# nedeniyle terrain bazen SLOW gonderir, robot bunu engel sanmamali.
-HAZARD_BLOCKING = {"STOP"}
+# Avoider hazard_state'i ignore eder — sadece lidar engel mesafesine bakar.
+# Sebep: terrain_perception sim'de rampa egiminde sik sik STOP gonderiyor
+# (terrain SAFE/CAUTION/IMPASSABLE siniflandirmasi yanlis hesaplaniyor),
+# robot tirmanamadan donus dongusune giriyor. Tezdeki kacinma demosu icin
+# yalnizca lidar yeterli; hazard fusion ayri bir gosterim (safety_supervisor
+# tarafindan tuketilir, avoider degil).
+HAZARD_BLOCKING = set()
 
 
 def wrap_pi(angle: float) -> float:
