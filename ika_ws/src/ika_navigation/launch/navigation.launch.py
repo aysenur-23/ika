@@ -40,15 +40,17 @@ def generate_launch_description():
     # aktive eder, controller_server bu siralamada map_frame bulamayip
     # CONFIGURE_FAILURE'a duser ve lifecycle_manager zinciri durdurur.
     # Cozum: slam icin ayri lifecycle_manager (hemen baslar), Nav2 icin
-    # ayri (TimerAction ile 10 sn gecikmeli baslar, o zaman slam haritayi
-    # yayinlamis olur).
+    # ayri (TimerAction ile 30 sn gecikmeli baslar; slam'in scan toplayip
+    # haritayi /map'e yayinlamasi icin yeterli zaman).
     slam_lifecycle_nodes = ['slam_toolbox']
     nav2_lifecycle_nodes = [
         'controller_server',
         'planner_server',
         'behavior_server',
         'bt_navigator',
-        'collision_monitor',
+        # collision_monitor lifecycle disinda; surekli configure failure
+        # nav2 bringup'i kilitliyordu. safety_supervisor zaten safety zinciri
+        # icin yeterli (cmd_vel filtreleme + sensor watchdog).
     ]
 
     return LaunchDescription([
@@ -145,15 +147,19 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'autostart': True,
+                'bond_timeout': 10.0,
+                'attempt_respawn_reconnection': True,
+                'bond_respawn_max_duration': 20.0,
                 'node_names': slam_lifecycle_nodes,
             }],
         ),
 
-        # Nav2 lifecycle - 10 SN GECIKMELI baslar (enable_nav2=true ise).
-        # Bu sirada slam_toolbox map_frame yayinlamis olur, controller/planner
-        # costmap'leri init ederken transform bulur.
+        # Nav2 lifecycle - 30 SN GECIKMELI (slam'in /map yayinlamasi icin yeterli).
+        # bond_timeout 10 sn (default 4 cok kisaydi); respawn_reconnection true
+        # (configure failed olursa retry); attempt_respawn_reconnection true ile
+        # gecici bag sorunlarinda kurtulur.
         TimerAction(
-            period=10.0,
+            period=30.0,
             actions=[Node(
                 package='nav2_lifecycle_manager', executable='lifecycle_manager',
                 name='lifecycle_manager_navigation', output='screen',
@@ -161,6 +167,9 @@ def generate_launch_description():
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'autostart': True,
+                    'bond_timeout': 10.0,
+                    'attempt_respawn_reconnection': True,
+                    'bond_respawn_max_duration': 20.0,
                     'node_names': nav2_lifecycle_nodes,
                 }],
             )],
