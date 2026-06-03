@@ -3,22 +3,19 @@
   <world name="ika_test_world">
 
     <!-- =================================================================
-         IKA Tez Parkuru — 8 istasyon, dogrusal akis
+         IKA Engel Kacinma Test Pisti — sade
          =================================================================
-         Akis (+X yonu):
-            Start (0,0)
-              -> Ist 1: Rampa (Sinif 4) Yukselti
-              -> Ist 2: Slalom kutulari (Sinif 1) Sabit
-              -> Ist 3: Dar gecit (Sinif 6) Dar koridor
-              -> Ist 4: Ince direk + esik (Sinif 1+4)
-              -> Ist 5: Dinamik (yaya) (Sinif 5)
-              -> Ist 6: Negatif engel + cukur isaretleri (Sinif 3)
-              -> Ist 7: L-tipi kor koridor (Sinif 6 ileri)
-              -> Ist 8: Yuzey rampa: safe/caution/risky (Sinif 7)
-            Goal (18, 0)
-
-         Parkur: 18 m uzun, 6 m genis (sinir duvarlari y=+/-3)
-         Detay: docs/parkur_haritasi.md, TEST_PROTOKOLU.md §1
+         Robot start (0,0) +X yonune. 5 engel y=0 ekseninde, 3 m araliklarla.
+         Robot dumduz ilerler, her engele yaklasinca lidar gorur, saga veya
+         sola doner, etrafindan dolanir, devam eder.
+         Engeller:
+           obs_1  (3, 0)  kutu  0.5 m kup
+           obs_2  (6, 0)  kutu  0.6 m kup
+           obs_3  (9, 0)  silindir Ø 0.5
+           obs_4  (12, 0) yaya (silindir + kafa)
+           obs_5  (15, 0) kutu  0.7 m kup
+         Sinir duvarlari: y=±3 m, 0.5 m yukseklik (lidar gorur).
+         Bitis kemeri: (18, 0).
          ================================================================= -->
 
     <physics name="1ms" type="ignored">
@@ -31,13 +28,9 @@
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
     <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
     <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
-    <!-- Sensors render engine: world'de HARDCODE ETMIYORUZ.
-         CLI'dan --render-engine ile gelen secim kullanilir:
-           Pi development:  ogre2 (default, hizli)
-           WSL dev mode:    ogre  (heavy world + ogre2 sensors WSL'de takiliyor)
-           WSL screenshot:  ogre  (GUI surface budget)
-         simulation.launch.py icinde render_engine arg ile kontrol. -->
-    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
     <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
 
     <gravity>0 0 -9.81</gravity>
@@ -49,19 +42,12 @@
       <grid>false</grid>
     </scene>
 
-    <!-- Aydinlatma: ana gunes + ek dolgu isigi (tezde golge cok sert olmasin) -->
     <light type="directional" name="sun">
       <cast_shadows>true</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
       <diffuse>0.9 0.9 0.88 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
       <direction>-0.4 0.2 -0.9</direction>
-    </light>
-    <light type="directional" name="fill_light">
-      <cast_shadows>false</cast_shadows>
-      <pose>10 0 8 0 0 0</pose>
-      <diffuse>0.35 0.35 0.40 1</diffuse>
-      <direction>0.5 -0.3 -0.7</direction>
     </light>
 
     <spherical_coordinates>
@@ -76,39 +62,18 @@
     <model name="ground_plane">
       <static>true</static>
       <link name="link">
-        <collision name="collision">
+        <collision name="c">
           <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
           <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
         </collision>
-        <visual name="visual">
-          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
-          <material>
-            <ambient>0.42 0.42 0.44 1</ambient>
-            <diffuse>0.52 0.52 0.54 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- Parkur zemini: hafif daha acik renkte 20x6 m yol -->
-    <model name="track_surface">
-      <static>true</static>
-      <pose>9.0 0 0.001 0 0 0</pose>
-      <link name="link">
         <visual name="v">
-          <geometry><box><size>20.0 6.0 0.002</size></box></geometry>
-          <material>
-            <ambient>0.58 0.58 0.60 1</ambient>
-            <diffuse>0.68 0.68 0.70 1</diffuse>
-          </material>
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <material><ambient>0.42 0.42 0.44 1</ambient><diffuse>0.52 0.52 0.54 1</diffuse></material>
         </visual>
       </link>
     </model>
 
     <!-- =========================  SINIR DUVARLARI  ========================= -->
-    <!-- Parkur sinirlari: kuzey + guney boyunca 20 m duvar. Tez gorselinde
-         parkurun "yolunu" ayirir. Yukseklik 0.5 m (lidar gorur, ust acidan
-         gorsel acik). -->
     <model name="boundary_wall_north">
       <static>true</static>
       <pose>9.0 3.0 0.25 0 0 0</pose>
@@ -130,229 +95,46 @@
       </link>
     </model>
 
-    <!-- =========================  START / FINISH KEMERI  ========================= -->
-    <model name="start_gate_left">
+    <!-- =========================  ENGEL 1 — Kirmizi kutu (3, 0)  ========================= -->
+    <model name="obs_1">
       <static>true</static>
-      <pose>-0.5 1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="start_gate_right">
-      <static>true</static>
-      <pose>-0.5 -1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="start_gate_beam">
-      <static>true</static>
-      <pose>-0.5 0 1.55 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
-          <material><ambient>0.30 0.70 0.30 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="finish_gate_left">
-      <static>true</static>
-      <pose>18.0 1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="finish_gate_right">
-      <static>true</static>
-      <pose>18.0 -1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="finish_gate_beam">
-      <static>true</static>
-      <pose>18.0 0 1.55 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
-          <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- =========================  ISTASYON 1: RAMPA (Sinif 4)  =========================
-         2 m uzun, ~5.7 derece (%10) tirmanma surfacasi. INCE (2cm) tilted
-         board; on kenar yerde, arka kenar 21cm yukseklikte. Robot pruzsuz
-         tirmanir (tekerlek yaricapi 5cm > yer adim 1cm).
-         Tezdeki "rampa tirmanma" gosterimi icin idealdir. -->
-    <model name="ramp_safe">
-      <static>true</static>
-      <pose>2.0 0 0.10 0 -0.10 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>2.0 1.6 0.02</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>2.0 1.6 0.02</size></box></geometry>
-          <material><ambient>0.35 0.50 0.40 1</ambient><diffuse>0.45 0.60 0.50 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <!-- Inis rampasi: robot tepeden iniyor, parkura geri doner. Aksi halde
-         rampa sonunda 21cm dusus var, robot takilabilir. -->
-    <model name="ramp_safe_exit">
-      <static>true</static>
-      <pose>3.5 0 0.10 0 0.10 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>1.5 1.6 0.02</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.5 1.6 0.02</size></box></geometry>
-          <material><ambient>0.35 0.50 0.40 1</ambient><diffuse>0.45 0.60 0.50 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <!-- Yan tarafta caution rampa (~17 derece) - cesni, normal rotada degil -->
-    <model name="ramp_caution">
-      <static>true</static>
-      <pose>2.0 -2.2 0.25 0 -0.30 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>1.5 1.0 0.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.5 1.0 0.5</size></box></geometry>
-          <material><ambient>0.60 0.50 0.30 1</ambient><diffuse>0.70 0.60 0.35 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <!-- Istasyon 1 numara levhasi (zemine yapis) -->
-    <model name="marker_station_1">
-      <static>true</static>
-      <pose>2.0 1.8 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- =========================  ISTASYON 2: SLALOM KUTULARI (Sinif 1)  ========================= -->
-    <!-- 3 kutu, sirayla sag-sol-sag, robot zigzag yapacak. -->
-    <model name="obstacle_box_1">
-      <static>true</static>
-      <pose>4.0 0.7 0.20 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.40 0.40 0.40</size></box></geometry>
-          <material><ambient>0.70 0.30 0.20 1</ambient><diffuse>0.80 0.35 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="obstacle_box_2">
-      <static>true</static>
-      <pose>4.8 -0.7 0.20 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.40 0.40 0.40</size></box></geometry>
-          <material><ambient>0.70 0.30 0.20 1</ambient><diffuse>0.80 0.35 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="obstacle_box_3">
-      <static>true</static>
-      <pose>5.6 0.7 0.25 0 0 0</pose>
+      <pose>3.0 0 0.25 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
-          <material><ambient>0.70 0.30 0.20 1</ambient><diffuse>0.80 0.35 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="marker_station_2">
-      <static>true</static>
-      <pose>4.8 2.0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
+          <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.90 0.25 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ISTASYON 3: DAR GECIT (Sinif 6)  ========================= -->
-    <!-- 0.8 m genislikte gecit (robot eni 0.30 m, yeterli). -->
-    <model name="wall_left">
+    <!-- =========================  ENGEL 2 — Mavi kutu (6, 0)  ========================= -->
+    <model name="obs_2">
       <static>true</static>
-      <pose>7.0 0.55 0.35 0 0 0</pose>
+      <pose>6.0 0 0.30 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>1.5 0.10 0.70</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.5 0.10 0.70</size></box></geometry>
-          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.65 0.65 0.65 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="wall_right">
-      <static>true</static>
-      <pose>7.0 -0.55 0.35 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>1.5 0.10 0.70</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.5 0.10 0.70</size></box></geometry>
-          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.65 0.65 0.65 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="marker_station_3">
-      <static>true</static>
-      <pose>7.0 2.0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.60 0.60 0.60</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.60 0.60 0.60</size></box></geometry>
+          <material><ambient>0.20 0.30 0.80 1</ambient><diffuse>0.25 0.35 0.90 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ISTASYON 4: INCE DIREK + ESIK (Sinif 1+4)  ========================= -->
-    <!-- Ince direk: PVC boru benzeri, lidar cozunurlugu sinari. -->
-    <model name="thin_pole_1">
+    <!-- =========================  ENGEL 3 — Sari silindir (9, 0)  ========================= -->
+    <model name="obs_3">
       <static>true</static>
-      <pose>9.0 -0.4 0.70 0 0 0</pose>
+      <pose>9.0 0 0.35 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>1.40</length></cylinder></geometry></collision>
-        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>1.40</length></cylinder></geometry>
-          <material><ambient>0.85 0.75 0.15 1</ambient><diffuse>0.95 0.85 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <!-- Esik: 8 cm yukseklik, robot ya tirmanir ya yavaslar. -->
-    <model name="kerb_step_1">
-      <static>true</static>
-      <pose>9.3 0.5 0.04 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.30 0.80 0.08</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.30 0.80 0.08</size></box></geometry>
-          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.65 0.65 0.65 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="marker_station_4">
-      <static>true</static>
-      <pose>9.2 2.0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>0.70</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>0.70</length></cylinder></geometry>
+          <material><ambient>0.95 0.85 0.20 1</ambient><diffuse>1.00 0.95 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ISTASYON 5: DINAMIK ENGEL (yaya) (Sinif 5)  ========================= -->
-    <!-- Statik insan modeli (govde + kafa). sim_detection_node bunu DL hattini
-         beslemek icin yer-gercegi olarak okur, /detected_objects yayinlar. -->
-    <model name="person_static_1">
+    <!-- =========================  ENGEL 4 — Yaya (12, 0)  ========================= -->
+    <model name="obs_4_person">
       <static>true</static>
-      <pose>11.0 0.6 0.0 0 0 -1.5708</pose>
+      <pose>12.0 0 0.0 0 0 0</pose>
       <link name="link">
         <collision name="body"><pose>0 0 0.45 0 0 0</pose>
           <geometry><cylinder><radius>0.20</radius><length>0.90</length></cylinder></geometry></collision>
@@ -368,364 +150,70 @@
         </visual>
       </link>
     </model>
-    <model name="marker_station_5">
+
+    <!-- =========================  ENGEL 5 — Buyuk yesil kutu (15, 0)  ========================= -->
+    <model name="obs_5">
       <static>true</static>
-      <pose>11.0 2.0 0.005 0 0 0</pose>
+      <pose>15.0 0 0.35 0 0 0</pose>
       <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.70 0.70 0.70</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.70 0.70 0.70</size></box></geometry>
+          <material><ambient>0.20 0.65 0.30 1</ambient><diffuse>0.25 0.75 0.35 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ISTASYON 6: NEGATIF ENGEL + GORSEL CUKURLAR (Sinif 3)  ========================= -->
-    <!-- Yukseltilmis platform: robot ona cikip on kenara baktiginda
-         depth RANSAC DROPOFF_DANGER tetikler. -->
-    <model name="pit_platform_forward">
-      <static>true</static>
-      <pose>13.0 0 0.15 0 0 0</pose>
+    <!-- =========================  BASLANGIC / BITIS KEMERI  ========================= -->
+    <model name="start_gate_left">
+      <static>true</static><pose>-0.5 1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>1.6 1.6 0.30</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.6 1.6 0.30</size></box></geometry>
-          <material><ambient>0.30 0.30 0.50 1</ambient><diffuse>0.40 0.40 0.60 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
         </visual>
       </link>
     </model>
-    <!-- Gorsel cukurlar: koyu daireler/dikdortgenler. Depth RANSAC tetiklemez,
-         RGB yuzey siniflandirici (Sinif 7, sonraki faz) icin sahne. -->
-    <model name="pothole_visual_1">
-      <static>true</static>
-      <pose>12.3 0.8 0.003 0 0 0</pose>
+    <model name="start_gate_right">
+      <static>true</static><pose>-0.5 -1.2 0.75 0 0 0</pose>
       <link name="link">
-        <visual name="v">
-          <geometry><cylinder><radius>0.28</radius><length>0.005</length></cylinder></geometry>
-          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.10 0.10 0.10 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
         </visual>
       </link>
     </model>
-    <model name="pothole_visual_2">
-      <static>true</static>
-      <pose>13.0 -0.9 0.003 0 0 0</pose>
+    <model name="start_gate_beam">
+      <static>true</static><pose>-0.5 0 1.55 0 0 0</pose>
       <link name="link">
-        <visual name="v">
-          <geometry><cylinder><radius>0.32</radius><length>0.005</length></cylinder></geometry>
-          <material><ambient>0.06 0.06 0.06 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="trench_visual_1">
-      <static>true</static>
-      <pose>13.6 0.5 0.003 0 0 0.5</pose>
-      <link name="link">
-        <visual name="v">
-          <geometry><box><size>1.2 0.18 0.005</size></box></geometry>
-          <material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <!-- Tehlike konileri -->
-    <model name="hazard_cone_1">
-      <static>true</static>
-      <pose>12.3 1.4 0 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><pose>0 0 0.20 0 0 0</pose>
-          <geometry><cylinder><radius>0.10</radius><length>0.40</length></cylinder></geometry></collision>
-        <visual name="v"><pose>0 0 0.20 0 0 0</pose>
-          <geometry><cylinder><radius>0.10</radius><length>0.40</length></cylinder></geometry>
-          <material><ambient>0.95 0.45 0.10 1</ambient><diffuse>1.00 0.55 0.15 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="hazard_cone_2">
-      <static>true</static>
-      <pose>13.0 -1.5 0 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><pose>0 0 0.18 0 0 0</pose>
-          <geometry><cylinder><radius>0.08</radius><length>0.36</length></cylinder></geometry></collision>
-        <visual name="v"><pose>0 0 0.18 0 0 0</pose>
-          <geometry><cylinder><radius>0.08</radius><length>0.36</length></cylinder></geometry>
-          <material><ambient>0.95 0.45 0.10 1</ambient><diffuse>1.00 0.55 0.15 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="marker_station_6">
-      <static>true</static>
-      <pose>13.0 2.0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
+        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
+          <material><ambient>0.30 0.70 0.30 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ISTASYON 7: L-TIPI KOR KORIDOR (Sinif 6 ileri)  ========================= -->
-    <!-- Robotu iceri ceken bir L; sonu kapali, geri donus + alt rota gerek.
-         SLAM ve Nav2 oklusyon planlama testi. Yan tarafta (kuzey) gecis acik. -->
-    <model name="l_corridor_wall_a">
-      <static>true</static>
-      <pose>15.0 -0.6 0.30 0 0 0</pose>
+    <model name="finish_gate_left">
+      <static>true</static><pose>18.0 1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>1.6 0.10 0.60</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.6 0.10 0.60</size></box></geometry>
-          <material><ambient>0.50 0.50 0.55 1</ambient><diffuse>0.60 0.60 0.65 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
-    <model name="l_corridor_wall_b">
-      <static>true</static>
-      <pose>15.8 -0.05 0.30 0 0 1.5708</pose>
+    <model name="finish_gate_right">
+      <static>true</static><pose>18.0 -1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>1.1 0.10 0.60</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>1.1 0.10 0.60</size></box></geometry>
-          <material><ambient>0.50 0.50 0.55 1</ambient><diffuse>0.60 0.60 0.65 1</diffuse></material>
+        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
-    <model name="marker_station_7">
-      <static>true</static>
-      <pose>15.4 2.0 0.005 0 0 0</pose>
+    <model name="finish_gate_beam">
+      <static>true</static><pose>18.0 0 1.55 0 0 0</pose>
       <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- =========================  ISTASYON 8: YUZEY GRADYANI (Sinif 7)  ========================= -->
-    <!-- Bitis hattindan once safe -> caution -> risky yuzey yamasi geciti.
-         Su an gorsel; ileride RGB yuzey siniflandirici (Sinif 7) test alani. -->
-    <model name="surface_patch_safe">
-      <static>true</static>
-      <pose>16.6 0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.8 1.6 0.01</size></box></geometry>
-          <material><ambient>0.25 0.65 0.30 1</ambient><diffuse>0.30 0.75 0.35 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="surface_patch_caution">
-      <static>true</static>
-      <pose>17.2 0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.8 1.6 0.01</size></box></geometry>
-          <material><ambient>0.85 0.75 0.20 1</ambient><diffuse>0.95 0.85 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="surface_patch_risky">
-      <static>true</static>
-      <pose>17.8 0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.8 1.6 0.01</size></box></geometry>
-          <material><ambient>0.70 0.20 0.20 1</ambient><diffuse>0.80 0.25 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="marker_station_8">
-      <static>true</static>
-      <pose>17.2 2.0 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.4 0.4 0.01</size></box></geometry>
-          <material><ambient>0.95 0.95 0.20 1</ambient><diffuse>0.95 0.95 0.20 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- =========================  YOL GOSTERGESI (intended path)  =========================
-         Robotun gidecegi rotayi gosteren zemine yapisik yesil oklar.
-         Her ok 0.30 m uzunlukta x 0.10 m enli, 5 mm yukseklikte.
-         Waypoint'ler tezde Nav2 planinin secebilecegi guzergaha hizali. -->
-
-    <model name="path_arrow_01">
-      <static>true</static>
-      <pose>0.5 0.0 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_02">
-      <static>true</static>
-      <pose>1.5 0.0 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- 2'den 3'e: rampaya tirmanis ortasi -->
-    <model name="path_arrow_03">
-      <static>true</static>
-      <pose>2.5 0.0 0.215 0 -0.10 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_04">
-      <static>true</static>
-      <pose>3.3 0.0 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Slalom zigzag yonu -->
-    <model name="path_arrow_05">
-      <static>true</static>
-      <pose>3.9 -0.10 0.003 0 0 -0.4</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_06">
-      <static>true</static>
-      <pose>4.5 -0.20 0.003 0 0 0.5</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_07">
-      <static>true</static>
-      <pose>5.1 0.10 0.003 0 0 -0.5</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_08">
-      <static>true</static>
-      <pose>5.9 -0.05 0.003 0 0 0.2</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_09">
-      <static>true</static>
-      <pose>6.5 0.0 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Dar gecit ortasi -->
-    <model name="path_arrow_10">
-      <static>true</static>
-      <pose>7.0 0.0 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Direk + esik arasi -->
-    <model name="path_arrow_11">
-      <static>true</static>
-      <pose>8.5 0.10 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_12">
-      <static>true</static>
-      <pose>9.2 0.05 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Yaya etrafindan dolanis (gunye dogru) -->
-    <model name="path_arrow_13">
-      <static>true</static>
-      <pose>10.2 -0.30 0.003 0 0 -0.3</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_14">
-      <static>true</static>
-      <pose>11.0 -0.60 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Pit platform etrafindan (guneyden dolan) -->
-    <model name="path_arrow_15">
-      <static>true</static>
-      <pose>12.0 -1.20 0.003 0 0 -0.3</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_16">
-      <static>true</static>
-      <pose>13.0 -1.80 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_17">
-      <static>true</static>
-      <pose>14.0 -1.20 0.003 0 0 0.4</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_18">
-      <static>true</static>
-      <pose>14.5 -0.30 0.003 0 0 0.4</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- L-koridor kuzeyinden dolanis -->
-    <model name="path_arrow_19">
-      <static>true</static>
-      <pose>15.0 1.40 0.003 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_20">
-      <static>true</static>
-      <pose>15.9 0.80 0.003 0 0 -0.5</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <!-- Yuzey gradyaninin ustunden -->
-    <model name="path_arrow_21">
-      <static>true</static>
-      <pose>16.5 0.20 0.013 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-    <model name="path_arrow_22">
-      <static>true</static>
-      <pose>17.3 0.0 0.013 0 0 0</pose>
-      <link name="l"><visual name="v"><geometry><box><size>0.30 0.10 0.005</size></box></geometry>
-        <material><ambient>0.10 0.85 0.30 1</ambient><diffuse>0.15 1.00 0.40 1</diffuse></material>
-      </visual></link>
-    </model>
-
-    <!-- =========================  EK DEKOR (parkur disi)  ========================= -->
-    <!-- Geri plana 3 direkli isaret cubuklari + parkur disinda izleyici noktasi.
-         Tezde derinlik hissi icin (parkura odaklanma kalmaz). -->
-    <model name="decor_post_1">
-      <static>true</static>
-      <pose>3.0 -3.5 0.75 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><cylinder><radius>0.05</radius><length>1.5</length></cylinder></geometry>
-          <material><ambient>0.30 0.30 0.35 1</ambient><diffuse>0.40 0.40 0.45 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="decor_post_2">
-      <static>true</static>
-      <pose>9.0 3.5 0.75 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><cylinder><radius>0.05</radius><length>1.5</length></cylinder></geometry>
-          <material><ambient>0.30 0.30 0.35 1</ambient><diffuse>0.40 0.40 0.45 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="decor_post_3">
-      <static>true</static>
-      <pose>15.0 -3.5 0.75 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><cylinder><radius>0.05</radius><length>1.5</length></cylinder></geometry>
-          <material><ambient>0.30 0.30 0.35 1</ambient><diffuse>0.40 0.40 0.45 1</diffuse></material>
+        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
+          <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
