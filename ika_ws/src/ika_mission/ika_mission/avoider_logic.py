@@ -141,7 +141,9 @@ def decide(state: AvoiderState,
             new.phase = AvoiderPhase.AVOIDING
             reason = (f"DRIVING->AVOIDING (min_r={min_r:.2f}m, "
                       f"hazard={hazard_action}, dir={new.avoid_direction:+d})")
-            return AvoiderCommand(0.0, cfg.turn_speed_rps * new.avoid_direction,
+            # Donus baslangici: yavas ileri + don (yay ciz, engelin yan tarafina)
+            return AvoiderCommand(cfg.forward_speed_mps * 0.3,
+                                  cfg.turn_speed_rps * new.avoid_direction,
                                   new, reason)
         # Engelsiz: hizla ilerle, mesafe say
         new.distance_clear_m = state.distance_clear_m + max(odom_delta_m, 0.0)
@@ -154,8 +156,11 @@ def decide(state: AvoiderState,
 
     if state.phase == AvoiderPhase.AVOIDING:
         if blocked:
-            # Engel hala onumde -> donmeye devam
-            return AvoiderCommand(0.0, cfg.turn_speed_rps * state.avoid_direction,
+            # Engel hala onumde -> YAVAS ILERI + DON (yay ciz)
+            # Yerine donme yerine yan hareket: robot engelin etrafindan
+            # spiralle gecer, takılmaz.
+            return AvoiderCommand(cfg.forward_speed_mps * 0.3,
+                                  cfg.turn_speed_rps * state.avoid_direction,
                                   new, "AVOIDING (still blocked)")
         # On temiz -> ev yonune dogrultmaya gec
         new.phase = AvoiderPhase.REALIGNING
