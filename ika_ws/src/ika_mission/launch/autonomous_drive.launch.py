@@ -27,7 +27,7 @@ def generate_launch_description():
                 'turn_speed_rps': 0.5,
                 'obstacle_distance_m': 0.80,
                 'front_arc_deg': 60.0,
-                'target_distance_m': 2.0,
+                'target_distance_m': 10000.0,  # pratikte sonsuz — robot durmasın, sürekli sürsün
                 'yaw_tolerance_rad': 0.05,
                 'control_rate_hz': 20.0,
                 'start_delay_s': 3.0,
