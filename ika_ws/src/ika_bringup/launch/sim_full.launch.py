@@ -88,11 +88,30 @@ def generate_launch_description():
             condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
         ),
 
-        # /cmd_vel_safe -> /cmd_vel relay (her zaman)
+        # cmd_vel relay — autonomous_mode'a gore source secimi:
+        #   avoider  -> /cmd_vel_nav (avoider hazard_state okuyup ic safety yapar)
+        #   nav2     -> /cmd_vel_safe (full safety chain: collision_monitor +
+        #                              safety_supervisor)
+        #   off      -> /cmd_vel_safe (teleop_safe.sh kullanir)
+        Node(
+            package='topic_tools', executable='relay',
+            name='cmd_vel_relay', output='log',
+            arguments=['/cmd_vel_nav', '/cmd_vel'],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
+            parameters=[{'use_sim_time': True}],
+        ),
         Node(
             package='topic_tools', executable='relay',
             name='cmd_vel_relay', output='log',
             arguments=['/cmd_vel_safe', '/cmd_vel'],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'nav2'),
+            parameters=[{'use_sim_time': True}],
+        ),
+        Node(
+            package='topic_tools', executable='relay',
+            name='cmd_vel_relay', output='log',
+            arguments=['/cmd_vel_safe', '/cmd_vel'],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'off'),
             parameters=[{'use_sim_time': True}],
         ),
     ])
