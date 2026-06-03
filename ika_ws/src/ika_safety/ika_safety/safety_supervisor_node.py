@@ -17,6 +17,7 @@ import json
 
 import rclpy
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Imu, LaserScan, Image
 from std_msgs.msg import Bool, String
@@ -76,16 +77,25 @@ class SafetySupervisorNode(LifecycleNode):
 
         hazard_topic = self.get_parameter('hazard_state_topic').value
 
+        # Sensor topics genelde BEST_EFFORT yayinlanir (gz_bridge dahil).
+        # Default RELIABLE subscription'la QoS mismatch + Image deserialize
+        # WSL'de "Unable to convert call argument" rclpy crash'ine yol aciyor.
+        # Sensor QoS + Image icin raw=True (sadece timestamp lazim, icerik yok).
+        sensor_qos = QoSProfile(
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=5,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+        )
         self._cmd_vel_sub = self.create_subscription(
             Twist, in_topic, self._on_cmd_vel, 10)
         self._hazard_sub = self.create_subscription(
             String, hazard_topic, self._on_hazard, 10)
         self._scan_sub = self.create_subscription(
-            LaserScan, scan_topic, self._on_scan, 10)
+            LaserScan, scan_topic, self._on_scan, sensor_qos)
         self._depth_sub = self.create_subscription(
-            Image, depth_topic, self._on_depth, 10)
+            Image, depth_topic, self._on_depth, sensor_qos, raw=True)
         self._imu_sub = self.create_subscription(
-            Imu, imu_topic, self._on_imu, 20)
+            Imu, imu_topic, self._on_imu, sensor_qos)
 
         self._cmd_vel_pub = self.create_publisher(Twist, out_topic, 10)
         self._e_stop_pub = self.create_publisher(Bool, '/e_stop', 10)
@@ -136,7 +146,8 @@ class SafetySupervisorNode(LifecycleNode):
     def _on_scan(self, _msg: LaserScan):
         self.last_scan_time = self.get_clock().now()
 
-    def _on_depth(self, _msg: Image):
+    def _on_depth(self, _msg):
+        # raw=True icin _msg bytes; sadece timestamp watchdog'u kullaniyoruz.
         self.last_depth_time = self.get_clock().now()
 
     def _on_imu(self, _msg: Imu):
