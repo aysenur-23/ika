@@ -29,8 +29,8 @@ def generate_launch_description():
                 'front_arc_deg': 60.0,
                 'target_distance_m': 2.0,
                 'yaw_tolerance_rad': 0.05,
-                'control_rate_hz': 10.0,
-                'start_delay_s': 5.0,
+                'control_rate_hz': 20.0,
+                'start_delay_s': 3.0,
             }],
         ),
     ])
