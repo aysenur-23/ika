@@ -56,9 +56,11 @@ def generate_launch_description():
             'autonomous_mode', default_value='nav2',
             description="Suris modu: 'nav2' (default, goal-based + planlama) | "
                         "'avoider' (reaktif) | 'off' (sadece perception)."),
-        DeclareLaunchArgument('enable_octomap', default_value='true',
+        DeclareLaunchArgument('enable_octomap', default_value='false',
                               description="3D octomap server (tezdeki 3-eksenli "
-                                          "haritalama). Headless Gazebo'da problem yok."),
+                                          "haritalama). Default false — RViz'de "
+                                          "buyuk mavi duvarlari onler. Acmak icin "
+                                          "enable_octomap:=true."),
 
         # Gazebo + URDF + bridge + rviz
         IncludeLaunchDescription(

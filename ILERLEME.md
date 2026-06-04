@@ -1,5 +1,31 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-04 (gece) — RViz GORSEL DUZELTILDI**
+>
+> Kullanici raporu: "rvizde tek basina bir kutu", "arac titriyor".
+> Teshis:
+> 1. URDF (17.2 KB) saglikli — `robot_state_publisher` /robot_description'i
+>    `TRANSIENT_LOCAL` QoS ile yayinliyor.
+> 2. TF tree saglikli — `map → base_link → laser_base → laser_frame`,
+>    `base_link → camera_frame`, wheels, hepsi var.
+> 3. **Asil sorun**: RViz `RobotModel` display default'u
+>    `Description Source: File` (bos URDF File path) → ekran sadece TF
+>    eksenleri + minik base_link kutusu gosteriyor, gercek mesh'ler yok.
+> 4. **Yan sorun**: `enable_octomap=true` default'tu → /oak/points'tan
+>    aslinda lidar disindaki simulated depth camera noise voxelize olup
+>    devasa "mavi duvar" yariyordu.
+>
+> Fix:
+> - `ika_full.rviz`: `RobotModel` display'e `Description Source: Topic`,
+>   `Durability Policy: Transient Local` ekledi. Octomap layer'lari default
+>   `Enabled: false`.
+> - `sim_full.launch.py`: `enable_octomap` default `true` → **`false`**.
+>   Kullanici 3D harita isterse `enable_octomap:=true` ile aciyor.
+>
+> "Titreme" iddiasi gercek titreme degildi — robot mesh gorunmediginden
+> sadece TF axis arrow'lari hareket ediyordu (SLAM her ~1s kucuk correction
+> yapinca rotate goruluyordu). Mesh gelince algi stabilizesi gelir.
+
 > **2026-06-04 (gun sonu) — 10m OTONOM NAVIGASYON ✅**
 >
 > Test sonuclari (sim_full.launch.py default config, WSL2):
