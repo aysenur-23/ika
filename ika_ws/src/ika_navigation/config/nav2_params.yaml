@@ -104,16 +104,23 @@ controller_server:
         - "PathAlign"
         - "PathDist"
         - "GoalDist"
-      # KRITIK FIX (2026-06-04): BaseObstacle.scale TANIMSIZDI (default ~0.02!).
-      # Engel cost'una neredeyse hic agirlik verilmiyordu => robot engellere
-      # carpiyordu (Gazebo screenshot). Plucky MPPI CostCritic.cost_weight 3.81
-      # + critical_cost 300 esdeger DWB scale yaklasik 40. Yapildi 40.0.
-      # Diger critic'lerin scale'leri de orantili tutuldu.
+      # KRITIK FIX (2026-06-04): DWB critic agirlik orantisi yeniden ayarlandi.
+      # Kullanici raporu: "robot ortada kaldi, yolunu tekrar planlamiyor".
+      # Onceki PathAlign/PathDist 32 => DWB plan'a SIKICA bagli, yana
+      # sapamiyordu. A* engel etrafindan plan ciksa bile robot dumduz
+      # ilerlemek istiyordu.
+      #
+      # Yeni orantı (Plucky MPPI orantisina yakin):
+      #   BaseObstacle: 40 (kritik, engele yaklasmadan kac)
+      #   PathDist:     16 (yola yakın kal AMA gevsek)
+      #   PathAlign:    16 (yon takibi yumusak)
+      #   GoalDist:     32 (goal'e GITMEK on planda)
+      #   GoalAlign:    24 (final orientation)
       BaseObstacle.scale: 40.0
-      PathAlign.scale: 32.0
-      PathDist.scale: 32.0
+      PathAlign.scale: 16.0
+      PathDist.scale: 16.0
       GoalAlign.scale: 24.0
-      GoalDist.scale: 24.0
+      GoalDist.scale: 32.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
@@ -122,12 +129,20 @@ controller_server:
 planner_server:
   ros__parameters:
     use_sim_time: false
-    expected_planner_frequency: 5.0
+    # FIX (2026-06-04): expected_planner_frequency 5 -> 2 Hz +
+    # BT RateController hz=1.0 yerine planner_server'in kendisi cagirilmasi
+    # gerek. Engel onunde takilan robot icin replan agresif yapildi.
+    expected_planner_frequency: 2.0
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
-      use_astar: false
+      # FIX (2026-06-04): use_astar false (Dijkstra) -> TRUE (A*).
+      # A* engel etrafindan daha akilli yol planlar (kullanici talebi:
+      # "A* falan çalışacaktı"). Dijkstra dusuk maliyet alanlari sevdigi
+      # icin engel inflation'i icinden gecmek isteyebiliyordu; A* heuristic
+      # ile dogrudan goal'e yon verir + inflation'dan kacar.
+      use_astar: true
       allow_unknown: true
 
 behavior_server:
