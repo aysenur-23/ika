@@ -111,17 +111,19 @@ def generate_launch_description():
         ),
 
         # Nav2 core (enable_nav2=true ise yuklenir; avoider modunda 'false')
+        # NOT: PythonExpression `enable_nav2` Python boolean 'True' (capital T)
+        # uretir. 'True' == 'true' False! Capital T ile karsilastir.
         # controller_server - klasik DWB (varsayilan)
         Node(package='nav2_controller', executable='controller_server',
              name='controller_server', output='screen',
              condition=IfCondition(PythonExpression([
-                 "'", local_planner, "' == 'dwb' and '", enable_nav2, "' == 'true'"])),
+                 "'", local_planner, "' == 'dwb' and '", enable_nav2, "' == 'True'"])),
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
         # controller_server - MPPI (tez karsilastirmasi)
         Node(package='nav2_controller', executable='controller_server',
              name='controller_server', output='screen',
              condition=IfCondition(PythonExpression([
-                 "'", local_planner, "' == 'mppi' and '", enable_nav2, "' == 'true'"])),
+                 "'", local_planner, "' == 'mppi' and '", enable_nav2, "' == 'True'"])),
              parameters=[nav2_yaml, mppi_yaml, {'use_sim_time': use_sim_time}]),
         Node(package='nav2_planner', executable='planner_server',
              name='planner_server', output='screen',
@@ -141,23 +143,29 @@ def generate_launch_description():
              parameters=[nav2_yaml, {'use_sim_time': use_sim_time}]),
 
         # SLAM lifecycle - HEMEN baslar, slam_toolbox'i aktive eder
+        # KRITIK: use_sim_time=False. lifecycle_manager bond heartbeat'i
+        # sim_time'la degerlendirirse, WSL'de sim_time geri sicradiginda 200ms
+        # 30sn sayilip CRITICAL FAILURE atiyor. Wall clock kullansin.
         Node(
             package='nav2_lifecycle_manager', executable='lifecycle_manager',
             name='lifecycle_manager_slam', output='screen',
             parameters=[{
-                'use_sim_time': use_sim_time,
+                'use_sim_time': False,
                 'autostart': True,
-                'bond_timeout': 10.0,
-                'attempt_respawn_reconnection': True,
-                'bond_respawn_max_duration': 20.0,
+                # bond_timeout=0 -> heartbeat DISABLED. WSL'de sim_time vs
+                # wall_clock uyumsuzlugu (slam_toolbox sim_time heartbeat
+                # gonderir, lifecycle wall_clock dinlerse 60sn 200ms sayilip
+                # CRITICAL FAILURE atiyor). Bond kapali = node bir kez aktif
+                # olunca birakilir.
+                'bond_timeout': 0.0,
+                'attempt_respawn_reconnection': False,
                 'node_names': slam_lifecycle_nodes,
             }],
         ),
 
         # Nav2 lifecycle - 30 SN GECIKMELI (slam'in /map yayinlamasi icin yeterli).
-        # bond_timeout 10 sn (default 4 cok kisaydi); respawn_reconnection true
-        # (configure failed olursa retry); attempt_respawn_reconnection true ile
-        # gecici bag sorunlarinda kurtulur.
+        # respawn_reconnection FALSE (true degerinde tekrar configure denemesi
+        # zaten active node'lari bozuyor); bond_timeout 30 sn (yavaş node toleransı).
         TimerAction(
             period=30.0,
             actions=[Node(
@@ -165,11 +173,10 @@ def generate_launch_description():
                 name='lifecycle_manager_navigation', output='screen',
                 condition=IfCondition(enable_nav2),
                 parameters=[{
-                    'use_sim_time': use_sim_time,
+                    'use_sim_time': False,  # bkz. SLAM lifecycle yorumu
                     'autostart': True,
-                    'bond_timeout': 10.0,
-                    'attempt_respawn_reconnection': True,
-                    'bond_respawn_max_duration': 20.0,
+                    'bond_timeout': 60.0,
+                    'attempt_respawn_reconnection': False,
                     'node_names': nav2_lifecycle_nodes,
                 }],
             )],
@@ -235,8 +242,15 @@ def generate_launch_description():
             name='lifecycle_manager_ika', output='screen',
             condition=IfCondition(use_sim_time),
             parameters=[{
-                'use_sim_time': use_sim_time,
+                'use_sim_time': False,  # bond heartbeat icin wall clock
                 'autostart': True,
+                # bond_timeout=0 -> heartbeat DISABLED. WSL'de sim_time vs
+                # wall_clock uyumsuzlugu (slam_toolbox sim_time heartbeat
+                # gonderir, lifecycle wall_clock dinlerse 60sn 200ms sayilip
+                # CRITICAL FAILURE atiyor). Bond kapali = node bir kez aktif
+                # olunca birakilir.
+                'bond_timeout': 0.0,
+                'attempt_respawn_reconnection': False,
                 'node_names': [
                     'terrain_perception',
                     'hazard_fusion',
@@ -249,8 +263,15 @@ def generate_launch_description():
             name='lifecycle_manager_ika', output='screen',
             condition=UnlessCondition(use_sim_time),
             parameters=[{
-                'use_sim_time': use_sim_time,
+                'use_sim_time': False,  # bond heartbeat icin wall clock
                 'autostart': True,
+                # bond_timeout=0 -> heartbeat DISABLED. WSL'de sim_time vs
+                # wall_clock uyumsuzlugu (slam_toolbox sim_time heartbeat
+                # gonderir, lifecycle wall_clock dinlerse 60sn 200ms sayilip
+                # CRITICAL FAILURE atiyor). Bond kapali = node bir kez aktif
+                # olunca birakilir.
+                'bond_timeout': 0.0,
+                'attempt_respawn_reconnection': False,
                 'node_names': [
                     'terrain_perception',
                     'dl_perception',

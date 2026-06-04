@@ -145,13 +145,13 @@ global_costmap:
       # makul varsayim. Production'da true tercih edilebilir (daha ihtiyatli).
       track_unknown_space: false
       plugins: ["static_layer", "obstacle_layer", "terrain_layer", "detection_layer", "inflation_layer"]
-      # Keepout filter shu an kullanilmiyor (maps/keepout_mask.* dosyalari
-      # yok). Aktive etmek icin:
-      #   1) ika_navigation/maps/keepout_mask.{yaml,pgm} olusturun (DENEMELER.md 12)
-      #   2) asagidaki filters satirini aktive edin
+      # Keepout filter shu an kullanilmiyor (maps/keepout_mask.* dosyalari yok).
+      # 'filters' parametresi tamamen kaldirildi — empty liste planner_server'i
+      # InvalidParameterValueException ile CRASH ettiriyordu.
+      # Aktive etmek icin (gelecek):
+      #   1) ika_navigation/maps/keepout_mask.{yaml,pgm} olusturun
+      #   2) asagiya: filters: ["keepout_filter"]
       #   3) costmap_filters_info_server lifecycle node'unu calistirin
-      # filters: ["keepout_filter"]
-      filters: []
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
