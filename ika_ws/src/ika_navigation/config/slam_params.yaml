@@ -1,12 +1,25 @@
 slam_toolbox:
   ros__parameters:
     # NOT: use_sim_time launch tarafindan override edilir (sim'de true, Pi'de false).
-    # YAML burada default'u false (gercek robot), ama navigation.launch.py
-    # use_sim_time arg'iyle overload eder.
+    # YAML burada default'u true (sim icin); navigation.launch.py use_sim_time
+    # arg'iyle gercek robotta false yapar.
     use_sim_time: true
+
+    # PORT (articubot_one/plucky): Ceres solver explicit yapilandirilmasi —
+    # default'a kiyasla daha stabil scan matching, daha az TF jitter.
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
 
     odom_frame: odom
     map_frame: map
+    # NOT: base_frame base_link kalir (base_footprint denenmis ama EKF
+    # 'odom -> base_link' yayinladigi icin 'Failed to compute odom pose' verir.
+    # EKF param 'base_link_frame: base_footprint' yapilirsa Plucky standardi
+    # uygulanabilir; simdilik bizim mevcut zincire uyumlu kal.
     base_frame: base_link
     scan_topic: /scan
 
@@ -24,8 +37,20 @@ slam_toolbox:
     use_scan_matching: true
     use_scan_barycenter: true
 
-    transform_publish_period: 0.05
+    # PORT (articubot_one/plucky): transform_publish_period 0.05 -> 0.02 (50 Hz).
+    # Yuksek TF rate, robot URDF gorseli RViz'de cok daha smooth.
+    transform_publish_period: 0.02
     map_update_interval: 5.0
+
+    # PORT (articubot_one/plucky): scan buffer + ek smoothing
+    throttle_scans: 1
+    minimum_time_interval: 0.5
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
 
     # Loop closure - encoder yokken agresif
     do_loop_closing: true

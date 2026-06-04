@@ -13,6 +13,11 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odometry/filtered
+    # NOT: Plucky bt_loop_duration=5 deniyor (200 Hz BT tick) ama bizim setup'da
+    # robot 2.58m'de takildi (v15 benchmark). 10 (100 Hz) daha guvenli:
+    # v14 sonucu 1/4 SUCCEEDED + 7.56m otonom mesafe.
+    # Costmap update_frequency 5 Hz ile uyumsuzluk olabilir; 10 ms tick
+    # planner'a stale plan referansi veriyor.
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
@@ -30,7 +35,10 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: false
-    controller_frequency: 10.0
+    # PORT (articubot_one/plucky): controller_frequency 10 -> 5 Hz.
+    # WSL sim time step ile uyum kritik — daha yuksek freq simulasyonu gecersiz
+    # tampon biriktirip cmd_vel zincirini bozuyordu (intermittent lifecycle).
+    controller_frequency: 5.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -147,8 +155,13 @@ global_costmap:
       rolling_window: true
       width: 40
       height: 40
-      # track_unknown_space: false -> bilinmeyen hucreleri FREE say.
-      track_unknown_space: false
+      # PORT (articubot_one/plucky): track_unknown_space false -> TRUE.
+      # Bilinmeyen hucreler FREE sayilinca Nav2 'ABORTED 102 GOAL_OUTSIDE_MAP'
+      # false alarm veriyordu — kayan pencere kenarinda bos hucreler 'gercek
+      # bilinmiyor' degil 'serbest' isaretlendiginden goal validation fail
+      # ediyordu. TRUE yapinca planner unknown -> caution gradient olusturur,
+      # SLAM haritasi yayildikca dogal serbest alan kazanilir.
+      track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "terrain_layer", "detection_layer", "inflation_layer"]
       # Keepout filter shu an kullanilmiyor (maps/keepout_mask.* dosyalari yok).
       # 'filters' parametresi tamamen kaldirildi — empty liste planner_server'i
@@ -212,11 +225,13 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # Steep decay (5.0) + sikilastirilmis radius (0.30): cyan inflasyon
-        # yayilmasi azalir, dar koridorlardan plan uretilebilir.
-        # Robot radius 0.25 + 0.05m guvenlik = 0.30m yeterli.
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.30
+        # PORT (articubot_one/plucky): cost_scaling 2.58, inflation_radius 0.40.
+        # Plucky orijinali 2.58 / 1.75 (robot 0.4m). Bizim robot 0.25m + dar
+        # parkur (0.4m engeller) icin radius 0.40 = robot + 0.15m guvenlik.
+        # Onceki 5.0 / 0.30 cyan yayilmayi azaltiyordu ama plan kalitesini de
+        # bozuyordu (controller_server zincir hatasi).
+        cost_scaling_factor: 2.58
+        inflation_radius: 0.40
 
       # KeepoutFilter VARSAYILAN OLARAK KAPALI - aktiflestirmek icin
       # KEEPOUT.md rehberini takip edin (mask dosyasi + filter_info_server
@@ -307,11 +322,13 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # Steep decay (5.0) + sikilastirilmis radius (0.30): cyan inflasyon
-        # yayilmasi azalir, dar koridorlardan plan uretilebilir.
-        # Robot radius 0.25 + 0.05m guvenlik = 0.30m yeterli.
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.30
+        # PORT (articubot_one/plucky): cost_scaling 2.58, inflation_radius 0.40.
+        # Plucky orijinali 2.58 / 1.75 (robot 0.4m). Bizim robot 0.25m + dar
+        # parkur (0.4m engeller) icin radius 0.40 = robot + 0.15m guvenlik.
+        # Onceki 5.0 / 0.30 cyan yayilmayi azaltiyordu ama plan kalitesini de
+        # bozuyordu (controller_server zincir hatasi).
+        cost_scaling_factor: 2.58
+        inflation_radius: 0.40
 
 collision_monitor:
   ros__parameters:

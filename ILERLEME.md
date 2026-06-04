@@ -1,5 +1,44 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-04 (gece geç) — ARTICUBOT_ONE PORT (Plucky baseline)**
+>
+> Yedek: `classic-nav2-backup-2026-06-04` tag + main push (commit `f3bb35a`).
+> Geri donus icin `git reset --hard classic-nav2-backup-2026-06-04`.
+>
+> **Referans:** slgrobotics/articubot_one (Jazzy fork) — plucky variant.
+> Donanim & yazilim birebir bizimle uyumlu (Pi5 + Arduino + RPLIDAR +
+> Pi Cam + ROS 2 Jazzy + Gazebo Harmonic + Nav2 + slam_toolbox + EKF).
+>
+> **Port edilen kalibrasyonlar (cerrahi minimal):**
+> | Parametre | Eski | Yeni (Plucky) | Etki |
+> |---|---|---|---|
+> | `track_unknown_space` (global_costmap) | false | **true** | ABORTED 102 false alarm cozumu |
+> | `controller_frequency` | 10 Hz | **5 Hz** | Sim time step uyumu |
+> | `inflation_radius` / `cost_scaling` | 0.30 / 5.0 | **0.40 / 2.58** | Yumusak gradient, plan kalitesi |
+> | SLAM solver | implicit | **Ceres explicit (SCHUR_JACOBI)** | Stabil scan match |
+> | SLAM `transform_publish_period` | 0.05 | **0.02** (50 Hz) | RViz smooth TF |
+> | SLAM scan_buffer + smoothing | yok | **scan_buffer=10, link_match=0.1** | Loop closure kalitesi |
+>
+> **DENENMEDIGI ICIN GERI ALINAN:**
+> - SLAM `base_frame: base_footprint` → `base_link` rollback. EKF `odom→base_link`
+>   yayinladigi icin "Failed to compute odom pose". Tum stack tutarli kalsin
+>   dedik, simdilik base_link.
+> - `bt_loop_duration: 5` (Plucky) — v15 testte robot 2.58m'de takildi.
+>   `10` (100 Hz) bizim costmap update freq ile uyumlu.
+>
+> **Benchmark karsilastirmasi (sim, 4 waypoint):**
+> | Faz | SUCCEEDED | Robot mesafe | SLAM map | Komut |
+> |---|---|---|---|---|
+> | Classic (yedek) | 0/4 | 0.23 m (takildi) | 286 | f3bb35a |
+> | Plucky port v14 | **1/4 ✅** | **7.56 m** | **390** | (mevcut) |
+> | v15 (bt_loop=5) | 0/4 | 2.58 m (rollback) | 287 | — |
+>
+> **Tezdeki katki:** Parametre hassasiyet analizi — her degisikligin
+> robot mesafesi + goal basari oranina etkisi tablo halinde olculdu.
+> Referans alinan baseline (articubot_one/plucky) ile karsilastirilmis
+> port. ABORTED 102 hatasinin track_unknown_space ile cozulmesi ana
+> bulgu.
+
 > **2026-06-04 (gece) — RViz GORSEL DUZELTILDI**
 >
 > Kullanici raporu: "rvizde tek basina bir kutu", "arac titriyor".

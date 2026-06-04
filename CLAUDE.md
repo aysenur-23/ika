@@ -129,6 +129,34 @@ Pi'de: `colcon test --packages-select ika_terrain ika_perception_dl ika_fusion i
 
 ---
 
+## Referans Proje (Plucky baseline port — 2026-06-04)
+
+**slgrobotics/articubot_one** Jazzy fork — Josh Newans (Articulated Robotics)
+projesinin aktif geliştirilen Pi5 + Gazebo Harmonic fork'u. Donanım/yazılım
+birebir bizimle uyumlu (Pi5 + Arduino + RPLIDAR + Pi Cam + ROS 2 Jazzy + Nav2
++ slam_toolbox + EKF). `~/refs/articubot_one`'a clone'lu (read-only referans).
+
+**plucky** robot variantı config'leri bizim mevcut stack'e cerrahi minimal port
+edildi. Port edilen kalibrasyonlar:
+
+| Parametre | Değer | Etki |
+|---|---|---|
+| Global costmap `track_unknown_space` | `true` | **ABORTED 102 false alarm fix** |
+| Controller `controller_frequency` | `5 Hz` | Sim time step uyumu |
+| Inflation `radius` / `scaling` | `0.40 / 2.58` | Yumuşak gradient |
+| SLAM solver | Ceres explicit (SCHUR_JACOBI + LEVENBERG_MARQUARDT) | Stabil scan match |
+| SLAM `transform_publish_period` | `0.02` (50 Hz) | RViz smooth TF |
+| BT `bt_loop_duration` | `10` (geri alındı — Plucky'nin 5'i bizde çalışmadı) | — |
+
+**Yedek tag:** `classic-nav2-backup-2026-06-04` (port öncesi son durum).
+Port hatası durumunda: `git reset --hard classic-nav2-backup-2026-06-04`.
+
+**Port sonrası benchmark** (sim, 4 waypoint):
+- Classic baseline: 0/4 SUCCEEDED, robot 0.23m (takıldı)
+- Plucky port: **1/4 SUCCEEDED, robot 7.56m otonom, SLAM 390 hücre**
+
+---
+
 ## Mimari Kararlar (özet — detay için `TEZ.md` ve proje belleği)
 
 - **Pi ↔ Arduino:** özel JSON seri protokol (micro-ROS değil ilk fazda).
