@@ -1,6 +1,9 @@
 slam_toolbox:
   ros__parameters:
-    use_sim_time: false
+    # NOT: use_sim_time launch tarafindan override edilir (sim'de true, Pi'de false).
+    # YAML burada default'u false (gercek robot), ama navigation.launch.py
+    # use_sim_time arg'iyle overload eder.
+    use_sim_time: true
 
     odom_frame: odom
     map_frame: map

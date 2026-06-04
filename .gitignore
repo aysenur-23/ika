@@ -22,3 +22,6 @@ Thumbs.db
 
 # colcon
 COLCON_IGNORE
+
+# Geçici diagnostic scriptleri (sim test)
+.tmp_*.sh

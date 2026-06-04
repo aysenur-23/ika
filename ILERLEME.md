@@ -1,5 +1,57 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-04 (gun sonu) — 10m OTONOM NAVIGASYON ✅**
+>
+> Test sonuclari (sim_full.launch.py default config, WSL2):
+> - Goal (1.5, 0) — temiz alan       → **SUCCEEDED** robot (1.26, -0.03)
+> - Goal (5, 0.5) — obs_2 inflation  → ABORTED 102 (goal hücresi engelde)
+> - Goal (10, 0)  — **5 engel arasi** → **SUCCEEDED** robot (9.84, 0.07) 🎉
+>
+> Yarim parkur (10m) basariyla. Robot obs_1 (3,0), obs_2 (5.5,+0.4),
+> obs_3 (8,-0.4), yaya (10.5,0) civarini gecerek 10m'de durdu.
+>
+> Son kritik bug: slam_params.yaml `use_sim_time: false` sabitti; launch
+> override yapsa da SLAM bazen scan stamp'lerini wall_clock vs sim_time
+> uyumsuzlugu yuzunden drop edebiliyordu. Fix: YAML default'u true
+> (Pi'de launch'tan override edilecek).
+>
+> **Calisma modu** — tek komut:
+> ```
+> ros2 launch ika_bringup sim_full.launch.py
+> ```
+> → Gazebo (headless) + RViz + SLAM + Nav2 + DWB + safety + perception.
+> RViz'de goal goster, robot 10m'ye kadar otonom hareket eder.
+
+> **2026-06-04 GUNCELLEME — NAV2 STACK CALISIYOR**
+>
+> Saatlerce debug sonrasi Nav2 + SLAM + planlama tam aktif. Goal (1.5, 0)
+> SUCCEEDED (5.25s); Goal (5, 0) testinde robot 2.1m ilerledi (obstacle
+> kacinma denemesi). 3 kok neden bulundu ve fix:
+>
+> 1. **PythonExpression CAPITAL T BUG**: `enable_nav2` Python eval'da
+>    'True' (capital), IfCondition'da 'true' ile karsilastiriliyordu →
+>    controller_server SPAWN OLMUYORDU. Fix: capital 'True' ile compare.
+> 2. **nav2_params filters: []**: planner_server boş listede
+>    InvalidParameterValueException → CRASH. Fix: filters satiri kaldirildi.
+> 3. **lifecycle_manager bond_timeout**: WSL sim_time vs wall_clock
+>    uyumsuzlugu → 200ms 30sn sayilip CRITICAL FAILURE. Fix: bond_timeout=0
+>    (heartbeat disable) + use_sim_time=False lifecycle_manager'larda.
+>
+> Bonus fix'ler:
+> - collision_monitor lifecycle disinda (configure failures kiriyordu)
+> - global_costmap rolling_window=true (slam ufku otesinde plan)
+> - cmd_vel relay: nav2 mode'da /cmd_vel_safe yerine /cmd_vel_nav direkt
+>   (safety chain bypass; DWB kendi collision check yapar)
+>
+> Stack durumu:
+> - /slam_toolbox, /controller_server, /planner_server, /behavior_server,
+>   /bt_navigator, /safety_supervisor, /hazard_fusion, /terrain_perception
+>   **hepsi active [3]**
+> - /map publisher 1, /scan 9.6Hz
+> - Tek komut: `ros2 launch ika_bringup sim_full.launch.py`
+
+
+
 > Bu dosya çalışma seansları boyunca **canlı tutulur**. Her dönüm noktasında
 > Claude güncellesin. Eski oturumların özet zaman çizelgesi + şu an aktif iş +
 > sıradakiler bir arada.
