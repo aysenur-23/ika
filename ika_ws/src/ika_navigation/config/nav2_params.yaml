@@ -26,11 +26,13 @@ bt_navigator:
     navigators: ['navigate_to_pose', 'navigate_through_poses']
     navigate_to_pose:
       plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+      # FIX (2026-06-04): default BT = w_replanning_and_recovery.xml
+      # Bu BT robot 1 sn duruyorsa Spin (90 deg) + BackUp (0.15m) + Wait (5s)
+      # recovery yapar. Engele yaklasinca otomatik sag/sol denemesi.
+      default_nav_to_pose_bt_xml: "$(find-pkg-share nav2_bt_navigator)/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
     navigate_through_poses:
       plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
-    # Jazzy'de BT action/condition node'lari ayni satirla yuklenir (eski
-    # plugin_lib_names listesi artik gereksiz — auto-loaded). Custom plugin
-    # gerekirse 'plugin_lib_names' geri eklenir.
+      default_nav_through_poses_bt_xml: "$(find-pkg-share nav2_bt_navigator)/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
 
 controller_server:
   ros__parameters:
@@ -50,8 +52,12 @@ controller_server:
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      # FIX (2026-06-04): radius 0.5 -> 0.25 (kucuk hareket sayilsin),
+      # time_allowance 10 -> 30s (recovery icin zaman).
+      # Robot engel onunde 5 sn duraklayip Spin yaparken progress fail
+      # sayilmamali.
+      required_movement_radius: 0.25
+      movement_time_allowance: 30.0
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -76,13 +82,16 @@ controller_server:
       decel_lim_x: -1.5
       decel_lim_y: 0.0
       decel_lim_theta: -2.0
-      vx_samples: 15
+      vx_samples: 20         # 15->20: daha cesitli hiz adaylari
       vy_samples: 1
-      vtheta_samples: 20
-      sim_time: 1.5
+      vtheta_samples: 40     # 20->40: daha cesitli dönüş adaylari (kacis manevra)
+      # KRITIK FIX (2026-06-04): sim_time 1.5->2.5 saniye. Robot 0.25 m/s'de
+      # 2.5s ileride 62.5 cm gorur. Onceki 1.5s = 37.5 cm yetersizdi, engel
+      # algilanmadan once carpisma oluyordu.
+      sim_time: 2.5
       linear_granularity: 0.05
       angular_granularity: 0.025
-      transform_tolerance: 0.2
+      transform_tolerance: 1.0   # FIX: 0.2 -> 1.0 (WSL TF gecikme 300ms goruldu)
       xy_goal_tolerance: 0.25
       trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: true
@@ -95,6 +104,12 @@ controller_server:
         - "PathAlign"
         - "PathDist"
         - "GoalDist"
+      # KRITIK FIX (2026-06-04): BaseObstacle.scale TANIMSIZDI (default ~0.02!).
+      # Engel cost'una neredeyse hic agirlik verilmiyordu => robot engellere
+      # carpiyordu (Gazebo screenshot). Plucky MPPI CostCritic.cost_weight 3.81
+      # + critical_cost 300 esdeger DWB scale yaklasik 40. Yapildi 40.0.
+      # Diger critic'lerin scale'leri de orantili tutuldu.
+      BaseObstacle.scale: 40.0
       PathAlign.scale: 32.0
       PathDist.scale: 32.0
       GoalAlign.scale: 24.0
@@ -102,6 +117,7 @@ controller_server:
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
+      Oscillation.scale: 1.0
 
 planner_server:
   ros__parameters:
@@ -141,8 +157,12 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      # KRITIK FIX (2026-06-04): 1.0 Hz update => robot 0.25 m/s'de saniyede
+      # 25 cm gidiyor, costmap 1 Hz'de => obstacle 25 cm geç fark ediliyordu.
+      # 5.0 Hz'e cikarildi: her tickte 5 cm hareket, gercek-zamanli engel
+      # algilama. Bu olmadan robot fizikselt engele carpti (Gazebo screenshot).
+      update_frequency: 5.0
+      publish_frequency: 5.0
       global_frame: map
       robot_base_frame: base_link
       robot_radius: 0.25
@@ -225,13 +245,12 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # PORT (articubot_one/plucky): cost_scaling 2.58, inflation_radius 0.40.
-        # Plucky orijinali 2.58 / 1.75 (robot 0.4m). Bizim robot 0.25m + dar
-        # parkur (0.4m engeller) icin radius 0.40 = robot + 0.15m guvenlik.
-        # Onceki 5.0 / 0.30 cyan yayilmayi azaltiyordu ama plan kalitesini de
-        # bozuyordu (controller_server zincir hatasi).
+        # KRITIK FIX (2026-06-04): inflation_radius 0.40 -> 0.55. Robot
+        # carpmasi sebebiyle Plucky'nin daha agresif degeri (0.55) kullanildi.
+        # Robot kenarindan 30 cm tampon (radius 0.25 + 0.30).
+        # cost_scaling 2.58 yumusak gradient (Plucky standardi).
         cost_scaling_factor: 2.58
-        inflation_radius: 0.40
+        inflation_radius: 0.55
 
       # KeepoutFilter VARSAYILAN OLARAK KAPALI - aktiflestirmek icin
       # KEEPOUT.md rehberini takip edin (mask dosyasi + filter_info_server
@@ -265,8 +284,9 @@ local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      # FIX (2026-06-04): publish_frequency 2 -> 5 Hz (DWB ile uyum).
+      update_frequency: 10.0
+      publish_frequency: 5.0
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
@@ -322,13 +342,12 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # PORT (articubot_one/plucky): cost_scaling 2.58, inflation_radius 0.40.
-        # Plucky orijinali 2.58 / 1.75 (robot 0.4m). Bizim robot 0.25m + dar
-        # parkur (0.4m engeller) icin radius 0.40 = robot + 0.15m guvenlik.
-        # Onceki 5.0 / 0.30 cyan yayilmayi azaltiyordu ama plan kalitesini de
-        # bozuyordu (controller_server zincir hatasi).
+        # KRITIK FIX (2026-06-04): inflation_radius 0.40 -> 0.55. Robot
+        # carpmasi sebebiyle Plucky'nin daha agresif degeri (0.55) kullanildi.
+        # Robot kenarindan 30 cm tampon (radius 0.25 + 0.30).
+        # cost_scaling 2.58 yumusak gradient (Plucky standardi).
         cost_scaling_factor: 2.58
-        inflation_radius: 0.40
+        inflation_radius: 0.55
 
 collision_monitor:
   ros__parameters:
@@ -342,33 +361,39 @@ collision_monitor:
     source_timeout: 2.0
     base_shift_correction: true
     stop_pub_timeout: 2.0
-    polygons: ["FootprintApproach", "StopZone"]
-    FootprintApproach:
+    # KRITIK (2026-06-04): 3 katmanli savunma:
+    # 1) StopZone (40 cm)   -> ANINDA durdur (engele <40cm lidar nokta)
+    # 2) SlowDown (60 cm)   -> %30 hiza dus (engele yaklasiyor)
+    # 3) ApproachBox        -> dinamik time-to-collision (DWB ile uyumlu)
+    # FIX 2 (2026-06-04): Circle StopZone => 360° lidar verisi sahne
+    # objelerini hayalet engel sayip robot hic hareket edemiyordu.
+    # Forward-only polygonlar: SADECE ILERIDEKI engel tetikler.
+    polygons: ["StopZoneFront", "SlowDownZoneFront"]
+    StopZoneFront:
       type: polygon
-      points: "[[0.30, 0.20], [0.30, -0.20], [-0.20, -0.20], [-0.20, 0.20]]"
-      action_type: approach
-      min_points: 4
-      slowdown_ratio: 0.5
-      time_before_collision: 2.0
-      simulation_time_step: 0.02
-      visualize: true
-      polygon_pub_topic: /collision_poly_approach
-    StopZone:
-      type: circle
-      radius: 0.25
+      # Robot ONUNDE 30 cm derinligi, +/-25 cm genisligi.
+      # Lidar bu kutuda >=3 nokta gorurse ANINDA STOP.
+      # base_link x>0 ON YON, lidar laser_frame robotun ortasinda (x=0.05).
+      points: "[[0.30, 0.25], [0.30, -0.25], [0.10, -0.25], [0.10, 0.25]]"
       action_type: stop
-      min_points: 4
+      min_points: 3
       visualize: true
       polygon_pub_topic: /collision_poly_stop
-    observation_sources: ["scan", "depth_pointcloud"]
+    SlowDownZoneFront:
+      type: polygon
+      # Onunde 60 cm derinligi, +/- 30 cm. %30 hiza dus.
+      points: "[[0.60, 0.30], [0.60, -0.30], [0.30, -0.30], [0.30, 0.30]]"
+      action_type: slowdown
+      min_points: 3
+      slowdown_ratio: 0.30
+      visualize: true
+      polygon_pub_topic: /collision_poly_slow
+    # SADECE LIDAR (depth_pointcloud kaldirildi — sim'de gec spawn lifecycle
+    # configure failure yapiyordu; lidar zaten 2D engel algilama icin yeterli).
+    observation_sources: ["scan"]
     scan:
       type: scan
       topic: /scan
-    depth_pointcloud:
-      type: pointcloud
-      topic: /oak/points
-      min_height: 0.02
-      max_height: 1.5
 
 lifecycle_manager_navigation:
   ros__parameters:

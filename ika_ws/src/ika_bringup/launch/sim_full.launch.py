@@ -94,19 +94,18 @@ def generate_launch_description():
             condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
         ),
 
-        # cmd_vel relay — autonomous_mode'a gore source secimi:
-        #   nav2     -> /cmd_vel_nav (DWB kendi collision check yapar, costmap
-        #                              inflation ile guvenli; collision_monitor
-        #                              lifecycle disinda oldugu icin /cmd_vel_collision
-        #                              yayinlanmaz, safety_supervisor cmd_vel_safe
-        #                              uretemez → zincir kopuk olur. Bypass: nav2
-        #                              direkt /cmd_vel'e baglanir.)
-        #   avoider  -> /cmd_vel_nav (avoider hazard_state okuyup ic safety yapar)
-        #   off      -> /cmd_vel_safe (teleop_safe.sh kullanir)
+        # cmd_vel relay — KRITIK (2026-06-04): collision_monitor cikisindan
+        # geriye relay. Doğru zincir:
+        #   DWB     -> /cmd_vel_nav         (planlanan hiz)
+        #   coll_mon -> /cmd_vel_collision  (engel yakininsa stop/slowdown uygular)
+        #   relay   -> /cmd_vel             (robota gider, engelde durur)
+        #
+        # Onceki /cmd_vel_nav -> /cmd_vel direkt = collision_monitor'u atliyordu,
+        # robot engellere carpiyordu (Gazebo screenshot kaniti). Düzeltildi.
         Node(
             package='topic_tools', executable='relay',
             name='cmd_vel_relay', output='log',
-            arguments=['/cmd_vel_nav', '/cmd_vel'],
+            arguments=['/cmd_vel_collision', '/cmd_vel'],
             condition=LaunchConfigurationEquals('autonomous_mode', 'nav2'),
             parameters=[{'use_sim_time': True}],
         ),

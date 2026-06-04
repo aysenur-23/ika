@@ -48,9 +48,12 @@ def generate_launch_description():
         'planner_server',
         'behavior_server',
         'bt_navigator',
-        # collision_monitor lifecycle disinda; surekli configure failure
-        # nav2 bringup'i kilitliyordu. safety_supervisor zaten safety zinciri
-        # icin yeterli (cmd_vel filtreleme + sensor watchdog).
+        # KRITIK FIX (2026-06-04): collision_monitor lifecycle'a GERI EKLENDI.
+        # Onceki "configure failure" depth_pointcloud subscription'dan
+        # (sim'de /oak/points gec spawn ediliyor). Cozum: collision_monitor
+        # observation_sources'ten depth_pointcloud kaldirildi, sadece /scan
+        # kaldi (lidar-only StopZone). Bu robot engele carpmasini ONLER.
+        'collision_monitor',
     ]
 
     return LaunchDescription([

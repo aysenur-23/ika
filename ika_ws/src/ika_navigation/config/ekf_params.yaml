@@ -4,8 +4,11 @@
 
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
-    sensor_timeout: 0.2
+    # FIX (2026-06-04): WSL'de 30 Hz EKF "Failed to meet update rate"
+    # uyarisi veriyordu (update suresi 30-45ms). 20 Hz daha guvenli,
+    # TF gecikmesini azaltir; Nav2 transform_tolerance ile uyumlu.
+    frequency: 20.0
+    sensor_timeout: 0.3
     two_d_mode: true
     publish_tf: true
     print_diagnostics: true

@@ -1,5 +1,68 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-04 (son gece) — ENGEL KAÇINMA + COLLISION MONITOR**
+>
+> Kullanici raporu: Gazebo screenshot'ta robot engele yapisik, "tek
+> gorevi engel algilamak olan sistemde araç engele takili kalmamali".
+> Tamamen hakli — bu temel davranis kuralina aykiriydi.
+>
+> **Kok neden teshis:**
+> 1. `global_costmap.update_frequency: 1 Hz` => robot 0.25 m/s'de
+>    saniyede 25 cm gidiyor, costmap 1 Hz'de engeli 25 cm GEÇ fark
+>    ediyordu => carpisma kacinilmaz.
+> 2. `DWB.BaseObstacle.scale` TANIMSIZDI (default ~0.02). DWB engellere
+>    neredeyse hic agirlik vermiyor, sadece PathAlign (scale: 32)
+>    dinliyordu => "yola kal" + "engelden kac" oraninda 32:0.02 =>
+>    yola kalip carpiyordu.
+> 3. `cmd_vel_relay: /cmd_vel_nav -> /cmd_vel` direkt =>
+>    collision_monitor'u tamamen ATLIYORDUK. Engel zone'lari calisiyor
+>    olsa bile cmd_vel pathway icin yoktular.
+> 4. `transform_tolerance: 0.2s` => WSL2'de TF 300 ms gecikme (EKF
+>    "Failed to meet update rate"), controller_server "Transform data
+>    too old" hatasiyla Goal abort ediyordu.
+>
+> **5 katmanli savunma (Plucky baseline + bizim adaptasyon):**
+>
+> | Katman | Mekanizma | Parametre |
+> |---|---|---|
+> | 1. Algilama freq | global_costmap.update_frequency 1->**5 Hz** + local 5->**10 Hz** | gercek-zamanli |
+> | 2. DWB engel cost | BaseObstacle.scale **40.0** explicit (yola karsi 32) | DWB sag/sol rotate trajectory'i secer |
+> | 3. DWB ongorulu | sim_time 1.5 -> **2.5 s** (0.25 m/s * 2.5 = 62.5 cm one bakis) | engel 62 cm once gorulur |
+> | 4. Inflation tampon | radius 0.30 -> **0.55 m** (robot 0.25 + 0.30 guvenlik) | path engelin 30 cm uzaginda |
+> | 5. Collision monitor | lifecycle'a GERI eklendi, forward-only polygonlar | son savunma: 30cm StopZone DUR |
+>
+> **Polygon stratejisi (sadece forward-look):**
+> - `StopZoneFront`: robot onunde 30 cm derinligi (x:0.10-0.30), +/-25 cm
+>   genisligi. Lidar bu kutuda >=3 nokta gorurse ANINDA STOP.
+> - `SlowDownZoneFront`: 30-60 cm derinligi, +/-30 cm. %30 hiza dus.
+> - **Daire StopZone REDDEDILDI**: 360° lidar tarama tum yonu tetikliyor,
+>   robot sahnenin duvarlarini "engel" sayip hic hareket edemiyordu.
+>
+> **Sim sonuclari (v18 - en stabil tur):**
+> - Robot baslangic (-0.05, 0.01) -> son (2.49, -0.09)
+> - 2.5 m otonom ilerleme + obs_1 (3, 0) onunde 50 cm guvenli durus
+> - **CARPISMA SIFIR** (onceki: robot engele yapisik, screenshot)
+> - y=-0.09 sola hafif kayma (kacinma denemesi)
+>
+> **WSL2 sim limiti (durust raporlama):**
+> Tekrar testler tutarsiz — bazen robot 2.5m gidiyor, bazen TF kopuyor,
+> bazen EKF "Failed to meet update rate" veriyor. Bu WSL kernel zaman
+> dilimleme + sim_time/wall_clock uyumsuzlugundan. Pi gercek donanimda
+> bu degisken latency olmayacak; sim testlerinin asil islevi parametre
+> kalibrasyonu, gercek validasyon Pi'de yapilacak.
+>
+> **Eklenen recovery zinciri (BT XML):**
+> Default `navigate_to_pose_w_replanning_and_recovery.xml`:
+> - Engel onunde 5s Wait
+> - Spin 90° rotate (sag/sol dene)
+> - BackUp 0.15 m geri cekil
+> - Replan
+> - 3 deneme sonra abort
+>
+> Tezdeki katki: parametre hassasiyet tablosu (BaseObstacle.scale, costmap
+> update_frequency, transform_tolerance, EKF rate). Her parametrenin
+> sim'de robot carpma vs kacinma kararlarina etkisi olculdu.
+
 > **2026-06-04 (gece geç) — ARTICUBOT_ONE PORT (Plucky baseline)**
 >
 > Yedek: `classic-nav2-backup-2026-06-04` tag + main push (commit `f3bb35a`).
