@@ -212,8 +212,11 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.45
+        # Steep decay (5.0) + sikilastirilmis radius (0.30): cyan inflasyon
+        # yayilmasi azalir, dar koridorlardan plan uretilebilir.
+        # Robot radius 0.25 + 0.05m guvenlik = 0.30m yeterli.
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.30
 
       # KeepoutFilter VARSAYILAN OLARAK KAPALI - aktiflestirmek icin
       # KEEPOUT.md rehberini takip edin (mask dosyasi + filter_info_server
@@ -304,8 +307,11 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.45
+        # Steep decay (5.0) + sikilastirilmis radius (0.30): cyan inflasyon
+        # yayilmasi azalir, dar koridorlardan plan uretilebilir.
+        # Robot radius 0.25 + 0.05m guvenlik = 0.30m yeterli.
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.30
 
 collision_monitor:
   ros__parameters:
