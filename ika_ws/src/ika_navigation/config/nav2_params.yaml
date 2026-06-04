@@ -139,12 +139,14 @@ global_costmap:
       robot_base_frame: base_link
       robot_radius: 0.25
       resolution: 0.05
-      # rolling_window: true -> costmap robot etrafinda 20m'lik pencere,
+      # rolling_window: true -> costmap robot etrafinda 40m'lik pencere,
       # slam haritasi ufku otesine de plan yapabilir. slam_toolbox haritasi
       # static_layer'a yine yansir, ama costmap boyutu bilinmeyen alana da uzanir.
+      # 40m pencere: robot (0,0)'da iken x in [-20, +20], y in [-20, +20].
+      # ABORTED 102 (GOAL_OUTSIDE_MAP) hatasini onler (20m parkurda).
       rolling_window: true
-      width: 20
-      height: 20
+      width: 40
+      height: 40
       # track_unknown_space: false -> bilinmeyen hucreleri FREE say.
       track_unknown_space: false
       plugins: ["static_layer", "obstacle_layer", "terrain_layer", "detection_layer", "inflation_layer"]
