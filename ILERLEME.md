@@ -1,5 +1,62 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-05 (akşam) — FAZ 2 TAMAM: ABLATION BÜYÜK BULGU**
+>
+> 4 ablasyon × N=5 = 20 trial koşuldu. **0/20 PASS.** Ama her ablasyonun
+> imzası FARKLI — gerçek probleme parmak basıldı.
+>
+> Detay: `benchmarks/debug_scenario/ablation/ablation_results.md`
+>
+> | Ablation | Config | PASS | dur μ | min_obs μ |
+> |---|---|---|---|---|
+> | A2.4 baseline | tüm katmanlar ON | 0/5 | 60.01 s TIMEOUT | 0.24 m |
+> | A2.1 coll-only | DWB=0, infl=0.05 | 0/5 | 51.98 s | 0.22 m |
+> | A2.2 dwb-only | bypass coll-mon | 0/5 | 17.12 s NAV | 0.27 m |
+> | A2.3 infl-only | DWB=0, bypass | 0/5 | 29.72 s NAV | 0.25 m |
+>
+> **Kritik bulgular:**
+>
+> 1. **DWB obstacle cost + inflation ETKİSİZ.** A2.4 (scale=40, infl=0.55)
+>    ≈ A2.1 (scale=0, infl=0.05). Yıllardır tunelenen "5 katmanlı savunma"
+>    katmanlarından **3 tanesi** (DWB cost, local infl, global infl) iş
+>    yapmıyor. Tek belirleyici **collision_monitor**.
+>
+> 2. **Robot hep aynı yerde takılır** (x ≈ 1.0, engel 1.5'te → 50 cm önce
+>    durur). 20 trial içinde sadece 1 trial (A2.2-1) y=-0.077 sapma
+>    gösterdi, diğer 19'da y < 0.05 → robot **prensipte** sapabiliyor
+>    ama **sistematik olarak sapamıyor**.
+>
+> 3. **collision_monitor asimetrik rol oynar:**
+>    - ON: TIMEOUT 60 s (Nav2 BT vazgeçmez, recovery loop sonsuz dener)
+>    - BYPASS: NAV ABORTED 17-30 s (control feedback recovery'yi hızlı
+>      tüketir)
+>    - Robotun fiziksel hareketi her iki durumda **aynı**.
+>
+> 4. **Faz 1 "Kategori A = algı geç" yanlış teşhisti.** Doğrusu:
+>    perception zamanında, **planner çıkışı izlenemez** (Kategori H —
+>    yeni). Robot hep engelden 50 cm önde durur; collision_monitor'un
+>    StopZone'una girer girmez fren.
+>
+> **Sıradaki — Faz 3 (revised plan):**
+>
+> Önceki: "WSL vs Pi karşılaştırması". **Yeni öneri:** Önce algoritmik
+> root cause:
+>
+> - **Faz 3.0** (1 saat) — `/plan` topic snapshot: planner engelin
+>   etrafından mı geçiyor yoksa düz çizgi mi üretiyor? (NavfnPlanner +
+>   inflation=0.55 → düz path imkansız ama gerçekleşiyor olabilir)
+> - **Faz 3.1** (yarım gün) — DWB diff-drive sample yoğunluğu (vtheta,
+>   vx_samples) ve ivme sınırları. Belki DWB rotasyon trajectory üretemiyor.
+> - **Faz 3.2** (yarım gün) — Planner alternatifi: NavfnPlanner →
+>   SmacPlannerHybrid (Hybrid-A*, kinematik-bilinçli).
+> - **Faz 3.3** (saat) — Goal offset: (3,0) → (3, 0.3). Düz path imkansız,
+>   planner S üretmek zorunda. PASS oranı değişiyor mu?
+> - **Faz 4** (Pi doğrulama) — WSL'de PASS olunca Pi'de doğrula.
+>
+> Tezdeki katkı: **"5 katmanlı savunma katmanları arasında 3 tanesi etkisiz"
+> bulgusu** + parametre hassasiyet ablation tablosu. Negatif sonuçlar
+> da tezde değerli.
+
 > **2026-06-05 — FAZ 0 + 1 TAMAM: BASELINE %0 PASS + TAKSONOMI**
 >
 > Önceki "5 katmanlı savunma" çalışmasının tekrar üretilebilirliği test
