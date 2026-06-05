@@ -35,6 +35,7 @@ def generate_launch_description():
     autonomous_mode = LaunchConfiguration('autonomous_mode')
     enable_octomap = LaunchConfiguration('enable_octomap')
     world_name = LaunchConfiguration('world')
+    bypass_coll = LaunchConfiguration('bypass_collision_monitor')
 
     # enable_nav2 = (autonomous_mode == 'nav2')
     enable_nav2 = PythonExpression(["'", autonomous_mode, "' == 'nav2'"])
@@ -66,6 +67,11 @@ def generate_launch_description():
                               description="Sahne (worlds/<ad>.sdf). 'test_world' "
                                           "(parkur) | 'debug_world' (1 engelli "
                                           "kalibrasyon)."),
+        DeclareLaunchArgument('bypass_collision_monitor', default_value='false',
+                              description="ABLATION: true ise /cmd_vel_nav -> "
+                                          "/cmd_vel direkt relay; collision_monitor "
+                                          "spawn olsa bile cikisi kullanilmaz. "
+                                          "DWB veya planner ablasyonu icin."),
 
         # Gazebo + URDF + bridge + rviz
         IncludeLaunchDescription(
@@ -108,11 +114,27 @@ def generate_launch_description():
         #
         # Onceki /cmd_vel_nav -> /cmd_vel direkt = collision_monitor'u atliyordu,
         # robot engellere carpiyordu (Gazebo screenshot kaniti). Düzeltildi.
+        # nav2 modu — collision_monitor cikisindan relay (default,
+        # 5 katmanli savunmanin son katmani).
         Node(
             package='topic_tools', executable='relay',
             name='cmd_vel_relay', output='log',
             arguments=['/cmd_vel_collision', '/cmd_vel'],
-            condition=LaunchConfigurationEquals('autonomous_mode', 'nav2'),
+            condition=IfCondition(PythonExpression([
+                "'", autonomous_mode, "' == 'nav2' and '",
+                bypass_coll, "' != 'true'"])),
+            parameters=[{'use_sim_time': True}],
+        ),
+        # nav2 modu + bypass — DWB cikisindan direkt relay (ABLATION).
+        # collision_monitor hala spawn olur (lifecycle'da) ama cikisi
+        # kullanilmaz. A2.2 (DWB only) ve A2.3 (planner only) icin.
+        Node(
+            package='topic_tools', executable='relay',
+            name='cmd_vel_relay', output='log',
+            arguments=['/cmd_vel_nav', '/cmd_vel'],
+            condition=IfCondition(PythonExpression([
+                "'", autonomous_mode, "' == 'nav2' and '",
+                bypass_coll, "' == 'true'"])),
             parameters=[{'use_sim_time': True}],
         ),
         Node(

@@ -75,8 +75,11 @@ for i in $(seq 1 "$N_TRIALS"); do
   # döngü trial 1'den sonra durur. setsid bunu engeller.
   SIM_LOG="/tmp/ika_trial_${i}.log"
   : > "$SIM_LOG"
+  # LAUNCH_EXTRA env var ile ablasyon launch arg'leri eklenebilir:
+  # LAUNCH_EXTRA="bypass_collision_monitor:=true" ./repeat_trial.sh ...
+  LAUNCH_EXTRA="${LAUNCH_EXTRA:-}"
   setsid bash -c "exec ros2 launch ika_bringup sim_full.launch.py \
-        headless:=true rviz:=false world:=debug_world \
+        headless:=true rviz:=false world:=debug_world $LAUNCH_EXTRA \
         > '$SIM_LOG' 2>&1" < /dev/null &
   SIM_PID=$!
   echo "$SIM_PID" > /tmp/ika_sim.pid
