@@ -22,7 +22,7 @@ set -u
 N_TRIALS="${1:-${N_TRIALS:-10}}"
 OUT_NAME="${2:-baseline_$(date +%Y%m%d_%H%M%S).csv}"
 TIMEOUT="${TIMEOUT:-60}"
-READY_WAIT="${READY_WAIT:-25}"
+READY_WAIT="${READY_WAIT:-45}"
 BETWEEN_DELAY="${BETWEEN_DELAY:-3}"
 
 # ---- Yol kurulumu ----
