@@ -1,0 +1,11 @@
+trial_id,status,final_x,final_y,dist_to_goal,min_obs_dist,duration,nav2_result
+1,FAIL_COLL,1.058,0.033,1.942,0.243,4.40,cancelled_by_collision
+2,FAIL_COLL,1.105,-0.005,1.895,0.195,3.53,cancelled_by_collision
+3,FAIL_NAV,-0.026,0.024,3.026,1.320,3.62,goal_send_timeout
+4,FAIL_NAV,0.093,0.009,2.907,1.207,0.34,ABORTED
+5,FAIL_NAV,1.003,0.015,1.997,0.261,32.63,ABORTED
+6,FAIL_NAV,0.416,0.009,2.584,0.884,2.32,ABORTED
+7,FAIL_COLL,1.067,0.010,1.933,0.233,3.21,cancelled_by_collision
+8,FAIL_NAV,0.045,-0.004,2.955,1.255,1.06,ABORTED
+9,FAIL_COLL,1.057,-0.029,1.943,0.244,3.35,cancelled_by_collision
+10,FAIL_NAV,0.004,0.024,2.996,1.285,1.06,ABORTED

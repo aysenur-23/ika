@@ -1,5 +1,71 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-05 — FAZ 0 + 1 TAMAM: BASELINE %0 PASS + TAKSONOMI**
+>
+> Önceki "5 katmanlı savunma" çalışmasının tekrar üretilebilirliği test
+> edildi. Sonuç: **çalışmıyor** — N=10 deterministic debug koşumda 0
+> PASS. Belge: `docs/failure_taxonomy.md`.
+>
+> **Faz 0 — tekrar üretilebilir test altyapısı:**
+> - `ika_ws/src/ika_simulation/worlds/debug_world.sdf`: tek engelli minimal
+>   sahne (robot 0,0 → engel 1.5,0 (kırmızı kutu 0.40 m küp) → goal 3,0).
+>   Sınır duvarları y=±2 m. Karmaşa yok, kalibrasyon için saf sahne.
+> - `simulation.launch.py` + `sim_full.launch.py`: `world:=<ad>` arg eklendi
+>   (default `test_world`). `world:=debug_world` ile sahne değişir, parkur
+>   bozulmaz.
+> - `benchmarks/debug_scenario/run_trial.py`: tek koşum monitör. Goal
+>   yayınlar, /odom + Nav2 action sonucu izler. PASS / FAIL_COLL / FAIL_NAV
+>   / FAIL_TIMEOUT döner.
+> - `benchmarks/debug_scenario/repeat_trial.sh`: N kere aç-koş-kapat,
+>   baseline CSV'sine yazar. **Kritik fix**: `setsid` ile launch'a yeni
+>   PGID ver — aksi halde `stop_sim.sh` (-PGID öldürür) script'in kendisini
+>   de öldürüyor; trial 1'den sonra döngü sessizce duruyor.
+> - `benchmarks/debug_scenario/analyze.py`: CSV → PASS rate + dağılım +
+>   markdown rapor.
+>
+> **Faz 1 — başarısızlık taksonomisi:**
+> A (algı geç), B (planner through obs), C (controller bypass),
+> D (cmd_vel relay bypass), E (TF/clock), F (recovery loop),
+> G (sim infra / stack init).
+>
+> **Baseline N=10 sınıflandırma:**
+> | Kategori | Sayı | Yorum |
+> |---|---:|---|
+> | A — Algı geç | 4 | Robot x=1.05'te durur, min_obs ≈ 0.24, hep tek mod |
+> | F — Recovery loop | 1 | Robot ulaştı, 32s döndü, abort |
+> | G — Stack init | 5 | Robot hiç hareket etmedi / 2s'de ABORTED |
+> | **PASS** | **0** | — |
+>
+> **Iki net mod, iki bağımsız problem:**
+> 1. **Çarpan trial'lar (A, %40):** Robot 0.25 m/s tam hızla 1 m gider,
+>    engelde collision_monitor StopZone son anda durdurur (24 cm).
+>    DWB/costmap erken hiçbir kaçınma sinyali üretmiyor — algı katmanı
+>    çökmüş. Faz 2 ablation #1 hedef: algı freq + DWB scale + inflation.
+> 2. **Hareket etmeyen trial'lar (G, %50):** READY_WAIT 45s bazı koşumlarda
+>    yetersiz. Faz 2 ablation #2: stack ready probu (Nav2 server + costmap
+>    update + TF) `run_trial.py` içinde aktif beklenmeli.
+>
+> **ILERLEME.md v18 "PASS" iddiası tekrar üretilemedi.** Önceki notta robot
+> 2.5 m otonom + 50 cm güvenli durus deniyordu. Aynı parametrelerle bugün
+> hiçbir trial 1.1 m'den ileri gidemedi. Olası nedenler:
+> - Tek başarılı koşumun cherry-pick olmuş olması, veya
+> - Uncommit `mppi_controller.yaml` (`transform_tolerance: 0.2→1.0`,
+>   `visualize: true`) gibi parametre kayıplarının olması (stash'lendi:
+>   `git stash list` → `wip-mppi-transform-tolerance`), veya
+> - WSL'nin yapısal güvenilmezliği.
+> Faz 3 (Pi vs WSL kararı) bu sorunu cevaplamalı.
+>
+> **Sıradaki — Faz 2: Katman katman doğrulama (ablation)**
+> Bağımsız 4 alt-test (her biri N=10):
+> - A2.1 sadece collision_monitor
+> - A2.2 sadece DWB
+> - A2.3 sadece planner inflation
+> - A2.4 hepsi açık (mevcut baseline)
+>
+> Hangi katman PASS'a katkı veriyor? Ablation tablosu tezde **doğrudan
+> kullanılacak**: "parametre hassasiyet analizi" (CLAUDE.md'de söz verilen
+> tez katkısı).
+
 > **2026-06-04 (son gece) — ENGEL KAÇINMA + COLLISION MONITOR**
 >
 > Kullanici raporu: Gazebo screenshot'ta robot engele yapisik, "tek
