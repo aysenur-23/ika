@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="ika_debug_world">
+
+    <!-- =================================================================
+         IKA DEBUG WORLD — Tek engelli minimal kalibrasyon sahnesi.
+         =================================================================
+         Amaç: tekrar üretilebilir, deterministik tek-engel testi.
+         Senaryo:
+           Robot start: (0, 0)  +X yönü
+           Engel obs_1: (1.5, 0)  kırmızı kutu 0.40 m küp
+           Goal:        (3.0, 0)
+         Sınır duvarları y=±2m (lidar görür, kapsayıcı koridor).
+         Hiçbir başka engel/dekor yok — sahne karmaşası kalibrasyonu
+         bozmasın diye sade tutuldu.
+         ================================================================= -->
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+
+    <gravity>0 0 -9.81</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+
+    <scene>
+      <ambient>0.55 0.55 0.6 1</ambient>
+      <background>0.65 0.78 0.92 1</background>
+      <grid>false</grid>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.88 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>41.015137</latitude_deg>
+      <longitude_deg>28.979530</longitude_deg>
+      <elevation>40.0</elevation>
+    </spherical_coordinates>
+
+    <!-- =========================  ZEMIN  ========================= -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="c">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><ambient>0.42 0.42 0.44 1</ambient><diffuse>0.52 0.52 0.54 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- =========================  SINIR DUVARLARI  =========================
+         y=±2m, x ekseninde -1..+5 boyunca. Lidar duvarları görür,
+         koridor hissi verir ama robot sıkışmaz (4 m geniş).
+         ================================================================= -->
+    <model name="boundary_wall_north">
+      <static>true</static>
+      <pose>2.0 2.0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>6.0 0.10 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>6.0 0.10 0.50</size></box></geometry>
+          <material><ambient>0.78 0.78 0.80 1</ambient><diffuse>0.85 0.85 0.88 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="boundary_wall_south">
+      <static>true</static>
+      <pose>2.0 -2.0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>6.0 0.10 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>6.0 0.10 0.50</size></box></geometry>
+          <material><ambient>0.78 0.78 0.80 1</ambient><diffuse>0.85 0.85 0.88 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- =========================  TEK ENGEL  =========================
+         obs_1 (1.5, 0) — kırmızı kutu, 0.40 m küp.
+         Robot start (0,0)'dan 1.5 m ileride. Robot 0.25 m/s'de
+         engele 6 saniyede gelir. Goal (3, 0) engelin 1.5 m ötesinde —
+         robot engelin etrafından dolaşıp varmalı.
+         ================================================================= -->
+    <model name="obs_1">
+      <static>true</static>
+      <pose>1.5 0 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.40 0.40 0.40</size></box></geometry>
+          <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.90 0.25 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- =========================  GOAL MARKER (görsel)  =========================
+         Sadece görsel — collision yok, robotun hedef noktasını işaretler.
+         ================================================================= -->
+    <model name="goal_marker">
+      <static>true</static>
+      <pose>3.0 0 0.01 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>0.20</radius><length>0.02</length></cylinder></geometry>
+          <material><ambient>0.10 0.80 0.10 1</ambient><diffuse>0.15 0.95 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

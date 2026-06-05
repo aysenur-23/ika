@@ -28,7 +28,12 @@ def generate_launch_description():
     ika_desc = FindPackageShare('ika_description')
     ros_gz_sim = FindPackageShare('ros_gz_sim')
 
-    world_path = PathJoinSubstitution([ika_sim, 'worlds', 'test_world.sdf'])
+    # world arg ile sahne degisir: test_world (default, parkur) | debug_world
+    # (kalibrasyon icin tek engelli minimal). Yeni dunya icin: world:=ad
+    # (uzanti yok). 'worlds/<ad>.sdf' aranır.
+    world_name = LaunchConfiguration('world')
+    world_path = PathJoinSubstitution([ika_sim, 'worlds',
+                                       [world_name, TextSubstitution(text='.sdf')]])
     xacro_path = PathJoinSubstitution([ika_desc, 'urdf', 'ika.urdf.xacro'])
     bridge_yaml = PathJoinSubstitution([ika_sim, 'config', 'ros_gz_bridge.yaml'])
     # Full sim config: Map + Costmaps + Global Plan + Local Plan + LaserScan + TF
@@ -120,6 +125,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'render_engine', default_value='ogre2',
             description="Gazebo rendering engine: 'ogre2' (Pi default) | 'ogre' (WSL2/yazilim OGL)"),
+        DeclareLaunchArgument(
+            'world', default_value='test_world',
+            description="Sahne adi (worlds/<ad>.sdf). 'test_world' (parkur) | "
+                        "'debug_world' (1 engelli minimal kalibrasyon sahnesi)."),
         DeclareLaunchArgument('x', default_value='0.0'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.1'),

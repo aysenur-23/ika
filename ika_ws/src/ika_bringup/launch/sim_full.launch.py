@@ -34,6 +34,7 @@ def generate_launch_description():
     slam_mode = LaunchConfiguration('slam_mode')
     autonomous_mode = LaunchConfiguration('autonomous_mode')
     enable_octomap = LaunchConfiguration('enable_octomap')
+    world_name = LaunchConfiguration('world')
 
     # enable_nav2 = (autonomous_mode == 'nav2')
     enable_nav2 = PythonExpression(["'", autonomous_mode, "' == 'nav2'"])
@@ -61,6 +62,10 @@ def generate_launch_description():
                                           "haritalama). Default false — RViz'de "
                                           "buyuk mavi duvarlari onler. Acmak icin "
                                           "enable_octomap:=true."),
+        DeclareLaunchArgument('world', default_value='test_world',
+                              description="Sahne (worlds/<ad>.sdf). 'test_world' "
+                                          "(parkur) | 'debug_world' (1 engelli "
+                                          "kalibrasyon)."),
 
         # Gazebo + URDF + bridge + rviz
         IncludeLaunchDescription(
@@ -70,6 +75,7 @@ def generate_launch_description():
                 'headless': headless,
                 'rviz': use_rviz,
                 'render_engine': render_engine,
+                'world': world_name,
             }.items(),
         ),
 
