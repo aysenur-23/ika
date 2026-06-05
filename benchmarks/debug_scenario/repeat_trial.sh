@@ -97,8 +97,11 @@ for i in $(seq 1 "$N_TRIALS"); do
     continue
   fi
 
-  # Trial koşumu
-  TRIAL_OUT=$(python3 "$SCRIPT_DIR/run_trial.py" --trial-id "$i" --timeout "$TIMEOUT" 2>&1 | tail -n 1)
+  # Trial koşumu (COLLISION_THRESHOLD env ile override edilebilir)
+  COLL_THRESH="${COLLISION_THRESHOLD:-0.05}"
+  TRIAL_OUT=$(python3 "$SCRIPT_DIR/run_trial.py" --trial-id "$i" \
+              --timeout "$TIMEOUT" --collision-threshold "$COLL_THRESH" \
+              2>&1 | tail -n 1)
   echo "$TRIAL_OUT" >> "$OUT"
   echo "  -> $TRIAL_OUT"
   if [[ "$TRIAL_OUT" == *",PASS,"* ]]; then

@@ -44,12 +44,12 @@ from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationExc
 # debug_world.sdf'teki sabit konfig
 OBSTACLE_XY = (1.5, 0.0)
 GOAL_XY = (3.0, 0.0)
-COLLISION_THRESHOLD = 0.25   # m — bundan yakın = FAIL_COLL
-GOAL_TOLERANCE = 0.50         # m — bundan yakın = goal'e vardı
+DEFAULT_COLLISION_THRESHOLD = 0.05   # m — varsayilan: ~temas (engel yarıçapı 0.20, robot bbox ~0.30)
+GOAL_TOLERANCE = 0.50                 # m — bundan yakın = goal'e vardı
 
 
 class TrialMonitor(Node):
-    def __init__(self):
+    def __init__(self, collision_threshold: float = DEFAULT_COLLISION_THRESHOLD):
         super().__init__('trial_monitor')
 
         # state
@@ -57,6 +57,7 @@ class TrialMonitor(Node):
         self.min_obs_dist = float('inf')
         self.collision_triggered = False
         self.t_start = None
+        self.collision_threshold = collision_threshold
         self.map_received = False
         self.local_costmap_received = False
         self.global_costmap_received = False
@@ -117,7 +118,7 @@ class TrialMonitor(Node):
         d = math.hypot(rx - ox, ry - oy) - 0.20  # engel yarıçapı 0.20m
         if d < self.min_obs_dist:
             self.min_obs_dist = d
-        if d <= COLLISION_THRESHOLD:
+        if d <= self.collision_threshold:
             self.collision_triggered = True
 
     def wait_for_sim_ready(self, timeout: float = 30.0) -> bool:
@@ -283,10 +284,13 @@ def main():
     ap.add_argument('--trial-id', type=int, required=True)
     ap.add_argument('--timeout', type=float, default=60.0)
     ap.add_argument('--ready-timeout', type=float, default=60.0)
+    ap.add_argument('--collision-threshold', type=float,
+                    default=DEFAULT_COLLISION_THRESHOLD,
+                    help='m, bundan yakın = FAIL_COLL (default 0.05 = temas)')
     args = ap.parse_args()
 
     rclpy.init()
-    node = TrialMonitor()
+    node = TrialMonitor(collision_threshold=args.collision_threshold)
 
     if not node.wait_for_sim_ready(timeout=args.ready_timeout):
         result = {
