@@ -22,7 +22,10 @@ set -u
 N_TRIALS="${1:-${N_TRIALS:-10}}"
 OUT_NAME="${2:-baseline_$(date +%Y%m%d_%H%M%S).csv}"
 TIMEOUT="${TIMEOUT:-60}"
-READY_WAIT="${READY_WAIT:-45}"
+# run_trial.py'da aktif probe var; bu sleep sadece launch process'lerinin
+# subprocess.spawn olmasını + ROS daemon registration'ını kolaylaştırır.
+# Asıl ready-check Python tarafında.
+READY_WAIT="${READY_WAIT:-15}"
 BETWEEN_DELAY="${BETWEEN_DELAY:-3}"
 
 # ---- Yol kurulumu ----

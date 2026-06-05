@@ -34,9 +34,11 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import LaserScan
 from nav2_msgs.action import NavigateToPose
+
+from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationException
 
 
 # debug_world.sdf'teki sabit konfig
@@ -55,6 +57,8 @@ class TrialMonitor(Node):
         self.min_obs_dist = float('inf')
         self.collision_triggered = False
         self.t_start = None
+        self.map_received = False
+        self.local_costmap_received = False
 
         # subscribers
         self.create_subscription(Odometry, '/odom', self._odom_cb, 10)
@@ -66,8 +70,30 @@ class TrialMonitor(Node):
         )
         self.create_subscription(LaserScan, '/scan', self._scan_cb, scan_qos)
 
+        # Nav2 / SLAM topic'leri TRANSIENT_LOCAL (latched) — son yayını al
+        latched_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.create_subscription(OccupancyGrid, '/map',
+                                 lambda _: self._mark_map(), latched_qos)
+        # /local_costmap/costmap normalde RELIABLE+VOLATILE
+        self.create_subscription(OccupancyGrid, '/local_costmap/costmap',
+                                 lambda _: self._mark_local_costmap(), 10)
+
+        # tf2 — map->base_link mevcut mu kontrol için
+        self.tf_buf = Buffer()
+        self.tf_listener = TransformListener(self.tf_buf, self)
+
         # nav2 action
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
+
+    def _mark_map(self):
+        self.map_received = True
+
+    def _mark_local_costmap(self):
+        self.local_costmap_received = True
 
     def _odom_cb(self, msg: Odometry):
         p = msg.pose.pose.position
@@ -89,19 +115,65 @@ class TrialMonitor(Node):
             self.collision_triggered = True
 
     def wait_for_sim_ready(self, timeout: float = 30.0) -> bool:
-        """Odom akışı + Nav2 action server hazır olunca True."""
+        """Stack tamamen hazır olunca True. Probe edilen:
+          1. /odom akışı (Gazebo + bridge canlı)
+          2. /navigate_to_pose action server (Nav2 lifecycle ACTIVE)
+          3. /map publish (SLAM yayınlıyor, latched alındı)
+          4. /local_costmap/costmap publish (lokal costmap aktif)
+          5. TF map → base_link mevcut (SLAM scan-match çalıştı)
+
+        Önceden: 45 s sabit sleep. Sonuç: G kategori (stack init) %50 FAIL.
+        Şimdi: aktif probe, her şart sağlanana kadar bekle (timeout 60s).
+        """
         t0 = time.time()
-        # odom akışı
-        while self.odom_xy is None and (time.time() - t0) < timeout:
+        deadline = t0 + timeout
+
+        def remaining():
+            return max(0.0, deadline - time.time())
+
+        # 1. odom
+        while self.odom_xy is None and time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=0.2)
         if self.odom_xy is None:
             self.get_logger().error('Timeout: /odom akmadı')
             return False
-        # nav2 server
-        if not self.nav_client.wait_for_server(timeout_sec=timeout - (time.time() - t0)):
+
+        # 2. nav2 action server
+        if not self.nav_client.wait_for_server(timeout_sec=remaining()):
             self.get_logger().error('Timeout: /navigate_to_pose server gelmedi')
             return False
-        return True
+
+        # 3. /map (SLAM latched)
+        while not self.map_received and time.time() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.2)
+        if not self.map_received:
+            self.get_logger().error('Timeout: /map yayını gelmedi')
+            return False
+
+        # 4. /local_costmap/costmap
+        while not self.local_costmap_received and time.time() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.2)
+        if not self.local_costmap_received:
+            self.get_logger().error('Timeout: /local_costmap/costmap gelmedi')
+            return False
+
+        # 5. TF map -> base_link
+        # SLAM scan-match yapıp ilk transform'u yayınlana kadar bekle.
+        # Birden fazla deneme — tf2 listener ilk birkaç sn'de henüz spin
+        # etmemiş olabilir.
+        from rclpy.time import Time
+        while time.time() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.2)
+            try:
+                self.tf_buf.lookup_transform('map', 'base_link', Time())
+                self.get_logger().info(
+                    f'Stack ready: {time.time() - t0:.1f}s '
+                    f'(odom+nav2+map+local_costmap+tf)')
+                return True
+            except (LookupException, ExtrapolationException):
+                continue
+        self.get_logger().error('Timeout: TF map->base_link gelmedi')
+        return False
 
     def send_goal(self, x: float, y: float):
         goal_msg = NavigateToPose.Goal()
@@ -186,7 +258,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--trial-id', type=int, required=True)
     ap.add_argument('--timeout', type=float, default=60.0)
-    ap.add_argument('--ready-timeout', type=float, default=45.0)
+    ap.add_argument('--ready-timeout', type=float, default=60.0)
     args = ap.parse_args()
 
     rclpy.init()
