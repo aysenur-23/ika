@@ -179,6 +179,13 @@ global_costmap:
       # min_obs_clearance=0.0 — plan engelin TAM ICINDEN geciyordu.)
       # Pi'de (gercek robot, wall_clock /scan) bu DEGER FALSE OLMALI.
       use_sim_time: true
+      # KRITIK FIX (2026-06-05 #2): transform_tolerance default 0.3s'de
+      # WSL'de "Message Filter dropping message: ... earlier than all data
+      # in transform cache" hatasıyla /scan'ler DROP oluyordu. TF buffer
+      # robot_state_publisher+EKF tarafından ileri zamanlı doluyor, /scan
+      # bridge gecikmesiyle stamp'i daha eski geliyor. 2.0s tolerans buffer
+      # geçmişe bakmaya izin verir.
+      transform_tolerance: 2.0
       # KRITIK FIX (2026-06-04): 1.0 Hz update => robot 0.25 m/s'de saniyede
       # 25 cm gidiyor, costmap 1 Hz'de => obstacle 25 cm geç fark ediliyordu.
       # 5.0 Hz'e cikarildi: her tickte 5 cm hareket, gercek-zamanli engel
@@ -308,6 +315,9 @@ local_costmap:
       # KRITIK FIX (2026-06-05): bkz. global_costmap.use_sim_time aciklamasi.
       # SIM'DE true OLMALI; Pi'de false.
       use_sim_time: true
+      # transform_tolerance: bkz. global_costmap aciklamasi. WSL'de /scan
+      # mesaj filtresinin DROP etmesini onler.
+      transform_tolerance: 2.0
       # FIX (2026-06-04): publish_frequency 2 -> 5 Hz (DWB ile uyum).
       update_frequency: 10.0
       publish_frequency: 5.0
