@@ -61,19 +61,18 @@ class PlanCapture(Node):
         self.nav_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
 
     def _plan_cb(self, msg: Path):
-        if self.plan_poses is None:
-            self.plan_poses = [
-                (p.pose.position.x, p.pose.position.y) for p in msg.poses
-            ]
-            self.get_logger().info(f'/plan yakalandı: {len(self.plan_poses)} poz')
+        # Her /plan mesajini guncelle: son alinan plan kullanilir (planner
+        # costmap update'i ile beraber yeniler).
+        self.plan_count = getattr(self, 'plan_count', 0) + 1
+        self.plan_poses = [
+            (p.pose.position.x, p.pose.position.y) for p in msg.poses
+        ]
 
     def _local_plan_cb(self, msg: Path):
-        if self.local_plan_poses is None:
-            self.local_plan_poses = [
-                (p.pose.position.x, p.pose.position.y) for p in msg.poses
-            ]
-            self.get_logger().info(
-                f'/local_plan yakalandı: {len(self.local_plan_poses)} poz')
+        self.local_plan_count = getattr(self, 'local_plan_count', 0) + 1
+        self.local_plan_poses = [
+            (p.pose.position.x, p.pose.position.y) for p in msg.poses
+        ]
 
     def wait_ready(self, timeout=60.0):
         t0 = time.time()
@@ -168,6 +167,8 @@ def main():
     result = {
         'global_plan': plan_analysis,
         'local_plan': local_plan_analysis,
+        'plan_msg_count': getattr(node, 'plan_count', 0),
+        'local_plan_msg_count': getattr(node, 'local_plan_count', 0),
         'plan_poses_xy': node.plan_poses,
         'local_plan_poses_xy': node.local_plan_poses,
     }
