@@ -66,15 +66,19 @@ for i in $(seq 1 "$N_TRIALS"); do
   "$STOP_SH" >/dev/null 2>&1 || true
   sleep 1
 
-  # Launch (background)
+  # Launch (background) — KRITIK: setsid ile YENI PGID oluştur.
+  # Aksi halde launch script'le aynı PGID'yi paylaşır; stop_sim.sh
+  # `kill -INT -- -PGID` çağırınca script'in KENDİSİ de ölür ve
+  # döngü trial 1'den sonra durur. setsid bunu engeller.
   SIM_LOG="/tmp/ika_trial_${i}.log"
   : > "$SIM_LOG"
-  nohup ros2 launch ika_bringup sim_full.launch.py \
+  setsid bash -c "exec ros2 launch ika_bringup sim_full.launch.py \
         headless:=true rviz:=false world:=debug_world \
-        > "$SIM_LOG" 2>&1 &
+        > '$SIM_LOG' 2>&1" < /dev/null &
   SIM_PID=$!
   echo "$SIM_PID" > /tmp/ika_sim.pid
-  ps -o pgid= -p "$SIM_PID" 2>/dev/null | tr -d ' ' > /tmp/ika_sim.pgid || true
+  # setsid'den sonra child kendi PGID'sine sahip; pgid=pid olur
+  echo "$SIM_PID" > /tmp/ika_sim.pgid
 
   ok "Launch PID=$SIM_PID, hazırlık $READY_WAIT s bekleniyor..."
   sleep "$READY_WAIT"
