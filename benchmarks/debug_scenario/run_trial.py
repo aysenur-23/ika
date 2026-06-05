@@ -59,6 +59,7 @@ class TrialMonitor(Node):
         self.t_start = None
         self.map_received = False
         self.local_costmap_received = False
+        self.global_costmap_received = False
 
         # subscribers
         self.create_subscription(Odometry, '/odom', self._odom_cb, 10)
@@ -81,6 +82,8 @@ class TrialMonitor(Node):
         # /local_costmap/costmap normalde RELIABLE+VOLATILE
         self.create_subscription(OccupancyGrid, '/local_costmap/costmap',
                                  lambda _: self._mark_local_costmap(), 10)
+        self.create_subscription(OccupancyGrid, '/global_costmap/costmap',
+                                 lambda _: self._mark_global_costmap(), 10)
 
         # tf2 — map->base_link mevcut mu kontrol için
         self.tf_buf = Buffer()
@@ -94,6 +97,9 @@ class TrialMonitor(Node):
 
     def _mark_local_costmap(self):
         self.local_costmap_received = True
+
+    def _mark_global_costmap(self):
+        self.global_costmap_received = True
 
     def _odom_cb(self, msg: Odometry):
         p = msg.pose.pose.position
@@ -150,11 +156,19 @@ class TrialMonitor(Node):
             self.get_logger().error('Timeout: /map yayını gelmedi')
             return False
 
-        # 4. /local_costmap/costmap
+        # 4a. /local_costmap/costmap (controller_server ACTIVE göstergesi)
         while not self.local_costmap_received and time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=0.2)
         if not self.local_costmap_received:
             self.get_logger().error('Timeout: /local_costmap/costmap gelmedi')
+            return False
+
+        # 4b. /global_costmap/costmap (planner_server ACTIVE göstergesi)
+        # Bu olmadan goal_rejected gelir; planner_server unconfigured/inactive.
+        while not self.global_costmap_received and time.time() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.2)
+        if not self.global_costmap_received:
+            self.get_logger().error('Timeout: /global_costmap/costmap gelmedi')
             return False
 
         # 5. TF map -> base_link
@@ -166,9 +180,19 @@ class TrialMonitor(Node):
             rclpy.spin_once(self, timeout_sec=0.2)
             try:
                 self.tf_buf.lookup_transform('map', 'base_link', Time())
+                # Son ek: lifecycle BT navigator + planner action server'i
+                # ACTIVE'e çıksın diye 3s daha bekle. Topic publish başlamış
+                # olsa bile action server accept ready olmayabilir.
+                ready_time = time.time() - t0
                 self.get_logger().info(
-                    f'Stack ready: {time.time() - t0:.1f}s '
-                    f'(odom+nav2+map+local_costmap+tf)')
+                    f'Probe OK: {ready_time:.1f}s '
+                    f'(odom+nav2+map+local+global+tf). '
+                    f'3s daha BT settle için bekliyorum...')
+                settle_end = time.time() + 3.0
+                while time.time() < settle_end:
+                    rclpy.spin_once(self, timeout_sec=0.1)
+                self.get_logger().info(
+                    f'Stack ready: {time.time() - t0:.1f}s')
                 return True
             except (LookupException, ExtrapolationException):
                 continue
