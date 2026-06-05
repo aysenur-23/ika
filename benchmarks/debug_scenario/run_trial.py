@@ -181,15 +181,18 @@ class TrialMonitor(Node):
             rclpy.spin_once(self, timeout_sec=0.2)
             try:
                 self.tf_buf.lookup_transform('map', 'base_link', Time())
-                # Son ek: lifecycle BT navigator + planner action server'i
-                # ACTIVE'e çıksın diye 3s daha bekle. Topic publish başlamış
-                # olsa bile action server accept ready olmayabilir.
+                # KRITIK (2026-06-05): Topic publish geldikten sonra GLOBAL
+                # COSTMAP'in obstacle_layer'ı /scan birikimiyle dolması zaman
+                # alır. 3s settle yetersizdi — capture_plan'da 30s sleep ile
+                # plan eğri oluyordu, trial'da 3s ile düz kalıyordu. 15s'ye
+                # çıkartıldı: costmap update_frequency 5 Hz × 15s = 75 scan
+                # işlemi -> engel global costmap'te kesin marked.
                 ready_time = time.time() - t0
                 self.get_logger().info(
                     f'Probe OK: {ready_time:.1f}s '
                     f'(odom+nav2+map+local+global+tf). '
-                    f'3s daha BT settle için bekliyorum...')
-                settle_end = time.time() + 3.0
+                    f'15s costmap+BT settle için bekliyorum...')
+                settle_end = time.time() + 15.0
                 while time.time() < settle_end:
                     rclpy.spin_once(self, timeout_sec=0.1)
                 self.get_logger().info(
