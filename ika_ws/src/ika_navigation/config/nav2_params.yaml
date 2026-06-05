@@ -171,7 +171,14 @@ behavior_server:
 global_costmap:
   global_costmap:
     ros__parameters:
-      use_sim_time: false
+      # KRITIK FIX (2026-06-05): use_sim_time false IDI -> true.
+      # SIM'DE /scan sim_time stamp'li gelir, costmap wall_clock'la yorumlasa
+      # tum scan'ler "too old" filter'ina takilir, GLOBAL OBSTACLE_LAYER
+      # ENGELI HIC GORMEZ. Sonuc: planner duz cizgi path uretir, robot
+      # engele dogru gider. (Faz 3.0 plan capture: arc/straight=1.0,
+      # min_obs_clearance=0.0 — plan engelin TAM ICINDEN geciyordu.)
+      # Pi'de (gercek robot, wall_clock /scan) bu DEGER FALSE OLMALI.
+      use_sim_time: true
       # KRITIK FIX (2026-06-04): 1.0 Hz update => robot 0.25 m/s'de saniyede
       # 25 cm gidiyor, costmap 1 Hz'de => obstacle 25 cm geç fark ediliyordu.
       # 5.0 Hz'e cikarildi: her tickte 5 cm hareket, gercek-zamanli engel
@@ -298,7 +305,9 @@ costmap_filter_info_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      use_sim_time: false
+      # KRITIK FIX (2026-06-05): bkz. global_costmap.use_sim_time aciklamasi.
+      # SIM'DE true OLMALI; Pi'de false.
+      use_sim_time: true
       # FIX (2026-06-04): publish_frequency 2 -> 5 Hz (DWB ile uyum).
       update_frequency: 10.0
       publish_frequency: 5.0
