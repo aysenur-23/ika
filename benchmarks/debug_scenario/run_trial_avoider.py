@@ -31,7 +31,7 @@ from std_msgs.msg import String
 # debug_world.sdf'teki sabit konfig (CLI ile override)
 DEFAULT_OBSTACLES = [(1.5, 0.0)]   # test_world.sdf icin coklu liste verilir
 DEFAULT_COLLISION_THRESHOLD = 0.05
-DEFAULT_PASS_X = 2.0                # bu x'i geçince "engel atlatıldı"
+DEFAULT_PASS_X = 2.5                # bu x'i geçince "engel atlatıldı" (engel 1.5 + 1.0 m geçiş)
 
 
 class AvoiderTrialMonitor(Node):
@@ -102,7 +102,13 @@ class AvoiderTrialMonitor(Node):
         return False
 
     def run_trial(self, timeout_s: float) -> dict:
-        """Avoider hareketini izle, sonuç döndür."""
+        """Avoider hareketini izle, sonuç döndür.
+
+        Avoider 'mission mode'da (target_distance_m=10000) sürekli sürer;
+        DONE'a varmaz. PASS kriteri: robot ENGELİ AŞTI (x >= pass_x) + ÇARPMADI.
+
+        Bu, kullanıcının asıl sorusunun cevabı: "engeli geçince yoluna devam".
+        """
         self.t_start = time.time()
         deadline = self.t_start + timeout_s
         last_pos_change_t = self.t_start
@@ -111,20 +117,22 @@ class AvoiderTrialMonitor(Node):
         while time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=0.1)
 
-            # Collision check
+            # Çarpma kontrolü
             if self.collision_triggered:
                 return self._mkresult('FAIL_COLL', 'cancelled_by_collision')
 
-            # Avoider DONE'a geldi mi?
+            # PASS koşulu: robot engeli aştı (x >= pass_x) VE çarpmadı
+            if self.odom_xy is not None and self.odom_xy[0] >= self.pass_x:
+                return self._mkresult('PASS', f'passed_x>={self.pass_x:.2f}')
+
+            # Avoider DONE'a geldi mi? (target_distance_m sonlu ise)
             if self.avoider_phase == "DONE":
-                # PASS: robot durdu + çarpmadı + engeli atlatti (x > pass_x)
-                # veya en azından target_distance_m kadar engelsiz mesafe katti
-                if self.odom_xy is None:
-                    return self._mkresult('FAIL_NAV', 'done_but_no_odom')
                 if self.collision_triggered:
                     return self._mkresult('FAIL_COLL', 'done_but_collided')
-                # DONE'a vardı, çarpmadı — başarı
-                return self._mkresult('PASS', 'avoider_DONE')
+                if self.odom_xy is not None and self.odom_xy[0] >= self.pass_x:
+                    return self._mkresult('PASS', 'avoider_DONE_passed')
+                # DONE ama engeli aşmadı (yana saplandı)
+                return self._mkresult('FAIL_REROUTED', 'avoider_DONE_but_not_past_obstacle')
 
             # Stuck detection: 8 saniye boyunca < 5 cm hareket
             if last_pos is not None and self.odom_xy is not None:
@@ -134,7 +142,8 @@ class AvoiderTrialMonitor(Node):
                     last_pos = self.odom_xy
                     last_pos_change_t = time.time()
                 elif (time.time() - last_pos_change_t) > 8.0:
-                    return self._mkresult('FAIL_STUCK', f'stuck_{int(time.time() - last_pos_change_t)}s')
+                    return self._mkresult('FAIL_STUCK',
+                                          f'stuck_{int(time.time() - last_pos_change_t)}s')
             elif self.odom_xy is not None:
                 last_pos = self.odom_xy
                 last_pos_change_t = time.time()

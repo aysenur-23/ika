@@ -14,7 +14,9 @@ set -u
 
 N_TRIALS="${1:-${N_TRIALS:-10}}"
 OUT_NAME="${2:-avoider_$(date +%Y%m%d_%H%M%S).csv}"
-TIMEOUT="${TIMEOUT:-45}"
+# Robot 0.25 m/s hizla 2.5m mesafeyi ~10s'de katar; engel kacinma sapma
+# eklenince 20-25s yeter. Eski 45s gereksizdi.
+TIMEOUT="${TIMEOUT:-30}"
 READY_WAIT="${READY_WAIT:-15}"
 BETWEEN_DELAY="${BETWEEN_DELAY:-3}"
 WORLD="${WORLD:-debug_world}"
@@ -75,9 +77,11 @@ for i in $(seq 1 "$N_TRIALS"); do
     continue
   fi
 
+  PASS_X="${PASS_X:-2.5}"
   TRIAL_OUT=$(python3 "$SCRIPT_DIR/run_trial_avoider.py" --trial-id "$i" \
               --timeout "$TIMEOUT" \
               --obstacles "$OBSTACLES" \
+              --pass-x "$PASS_X" \
               2>&1 | tail -n 1)
   echo "$TRIAL_OUT" >> "$OUT"
   echo "  -> $TRIAL_OUT"
