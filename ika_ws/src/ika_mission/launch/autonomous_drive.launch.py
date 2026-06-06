@@ -31,6 +31,16 @@ def generate_launch_description():
                 # var (collision_monitor StopZone 30 cm — son savunma asla
                 # tetiklenmez normal kosulda). Dinamik tepki gorseli icin ideal.
                 'obstacle_distance_m': 0.35,
+                'release_distance_m': 0.60,
+                # Camera DL: lidar'dan biraz uzak tetikleyici
+                # (CLAUDE.md: gercek robotta Pi Camera + IPM kullanilir)
+                'camera_detection_distance_m': 0.50,
+                # Heading correction DRIVING'de KAPATILDI (sacma sapma fix)
+                'heading_kp': 0.0,
+                'max_heading_correction_rps': 0.0,
+                'heading_critical_err_rad': 9999.0,
+                # PASSING: engelin yanindan ne kadar surulsun
+                'pass_clear_distance_m': 0.40,
                 'release_distance_m': 0.60,     # hysteresis: 0.35 girer, 0.60 cikar
                 'pass_clear_distance_m': 0.40,  # engelin yanindan 40 cm sur
                 'front_arc_deg': 50.0,          # 40 -> 50 — yakin engelleri kacirmasin
