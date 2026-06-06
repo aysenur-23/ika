@@ -84,7 +84,10 @@ controller_server:
       decel_lim_theta: -2.0
       vx_samples: 20         # 15->20: daha cesitli hiz adaylari
       vy_samples: 1
-      vtheta_samples: 40     # 20->40: daha cesitli dönüş adaylari (kacis manevra)
+      # FIX (2026-06-05): vtheta_samples 40 -> 80. Goal merkez-çizgide
+      # olunca DWB sapma trajectory'leri yeterince üretmiyor; daha yoğun
+      # açı sampling kavisli rotasyonlara izin verir (engelden dolanma).
+      vtheta_samples: 80
       # KRITIK FIX (2026-06-04): sim_time 1.5->2.5 saniye. Robot 0.25 m/s'de
       # 2.5s ileride 62.5 cm gorur. Onceki 1.5s = 37.5 cm yetersizdi, engel
       # algilanmadan once carpisma oluyordu.
@@ -104,23 +107,27 @@ controller_server:
         - "PathAlign"
         - "PathDist"
         - "GoalDist"
-      # KRITIK FIX (2026-06-04): DWB critic agirlik orantisi yeniden ayarlandi.
-      # Kullanici raporu: "robot ortada kaldi, yolunu tekrar planlamiyor".
-      # Onceki PathAlign/PathDist 32 => DWB plan'a SIKICA bagli, yana
-      # sapamiyordu. A* engel etrafindan plan ciksa bile robot dumduz
-      # ilerlemek istiyordu.
+      # KRITIK YENIDEN AYAR (2026-06-05): DWB critic agirliklari TERS
+      # cevrildi. Onceki orantı (PathAlign 16 + PathDist 16 = 32 vs
+      # GoalDist 32 + GoalAlign 24 = 56) robotu goal'e direkt çekiyordu.
+      # Engelden dolanan eğri plan üretilse bile DWB "no, goal düz hatta"
+      # diyerek geri merkez-çizgiye dönüyordu (Faz 3.0 plan capture'da
+      # plan eğri ama robot trial'da y≈0 — tam bu çelişki).
       #
-      # Yeni orantı (Plucky MPPI orantisina yakin):
-      #   BaseObstacle: 40 (kritik, engele yaklasmadan kac)
-      #   PathDist:     16 (yola yakın kal AMA gevsek)
-      #   PathAlign:    16 (yon takibi yumusak)
-      #   GoalDist:     32 (goal'e GITMEK on planda)
-      #   GoalAlign:    24 (final orientation)
+      # Yeni orantı (plan-dominant):
+      #   BaseObstacle: 40 (kritik, engelden kaç)
+      #   PathDist:     64 (plana SIKI kal) ★ artırıldı 16->64
+      #   PathAlign:    64 (yön takibi sıkı) ★ artırıldı 16->64
+      #   GoalDist:     16 (goal yakınlığı zayıf çekim) ★ azaltıldı 32->16
+      #   GoalAlign:    8  (final orientation zayıf) ★ azaltıldı 24->8
+      # Toplam: plan-follow 128 vs goal-pull 24 = ~5:1.
+      # Robot artık engeli atlatan eğri plana SIKICA uyar; goal'e ulaşma
+      # final yaklaşımda RotateToGoal critic'ten gelir.
       BaseObstacle.scale: 40.0
-      PathAlign.scale: 16.0
-      PathDist.scale: 16.0
-      GoalAlign.scale: 24.0
-      GoalDist.scale: 32.0
+      PathAlign.scale: 64.0
+      PathDist.scale: 64.0
+      GoalAlign.scale: 8.0
+      GoalDist.scale: 16.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
