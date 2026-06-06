@@ -3,19 +3,22 @@
   <world name="ika_test_world">
 
     <!-- =================================================================
-         IKA Engel Kacinma Test Pisti — sade
+         IKA Engel Kacinma Tezdeki TAM TAKSONOMI Test Pisti
          =================================================================
-         Robot start (0,0) +X yonune. 5 engel y=0 ekseninde, 3 m araliklarla.
-         Robot dumduz ilerler, her engele yaklasinca lidar gorur, saga veya
-         sola doner, etrafindan dolanir, devam eder.
-         Engeller:
-           obs_1  (3, 0)  kutu  0.5 m kup
-           obs_2  (6, 0)  kutu  0.6 m kup
-           obs_3  (9, 0)  silindir Ø 0.5
-           obs_4  (12, 0) yaya (silindir + kafa)
-           obs_5  (15, 0) kutu  0.7 m kup
-         Sinir duvarlari: y=±3 m, 0.5 m yukseklik (lidar gorur).
-         Bitis kemeri: (18, 0).
+         7 Sinif engel + 8 istasyon (CLAUDE.md taksonomisi):
+
+         X=0      Robot baslangic (yesil kapi)
+         X=3      Istasyon 1 — SINIF 1: Sabit fiziksel engel (kutu)
+         X=6      Istasyon 2 — SINIF 2: Yakin mesafe kritik (ince direk)
+         X=8      Istasyon 3 — SINIF 3: Negatif engel (cukur)
+         X=10     Istasyon 4 — SINIF 4: Yukselti (rampa + esik)
+         X=12.5   Istasyon 5 — SINIF 5: Dinamik engel (yaya)
+         X=15     Istasyon 6 — SINIF 6: Dar gecit (koridor)
+         X=18     Istasyon 7 — SINIF 7: Riskli zemin (renkli patch)
+         X=21     BITIS kapisi (kirmizi)
+
+         Sinir duvarlari: y=±3 m, 0.5 m yukseklik
+         Parkur uzunlugu: 22 m, genislik: 6 m
          ================================================================= -->
 
     <physics name="1ms" type="ignored">
@@ -58,95 +61,205 @@
       <elevation>40.0</elevation>
     </spherical_coordinates>
 
-    <!-- =========================  ZEMIN  ========================= -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         ZEMIN — gri beton görünümlü
+         ═══════════════════════════════════════════════════════════════ -->
     <model name="ground_plane">
       <static>true</static>
       <link name="link">
         <collision name="c">
-          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <geometry><plane><normal>0 0 1</normal><size>60 30</size></plane></geometry>
           <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
         </collision>
         <visual name="v">
-          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <geometry><plane><normal>0 0 1</normal><size>60 30</size></plane></geometry>
           <material><ambient>0.42 0.42 0.44 1</ambient><diffuse>0.52 0.52 0.54 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  SINIR DUVARLARI  ========================= -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         SINIR DUVARLARI — y=±3 m, x=0..22
+         ═══════════════════════════════════════════════════════════════ -->
     <model name="boundary_wall_north">
       <static>true</static>
-      <pose>9.0 3.0 0.25 0 0 0</pose>
+      <pose>11.0 3.0 0.25 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>20.0 0.10 0.50</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>20.0 0.10 0.50</size></box></geometry>
+        <collision name="c"><geometry><box><size>23.0 0.10 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>23.0 0.10 0.50</size></box></geometry>
           <material><ambient>0.78 0.78 0.80 1</ambient><diffuse>0.85 0.85 0.88 1</diffuse></material>
         </visual>
       </link>
     </model>
     <model name="boundary_wall_south">
       <static>true</static>
-      <pose>9.0 -3.0 0.25 0 0 0</pose>
+      <pose>11.0 -3.0 0.25 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>20.0 0.10 0.50</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>20.0 0.10 0.50</size></box></geometry>
+        <collision name="c"><geometry><box><size>23.0 0.10 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>23.0 0.10 0.50</size></box></geometry>
           <material><ambient>0.78 0.78 0.80 1</ambient><diffuse>0.85 0.85 0.88 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  ENGEL DUZENI  =========================
-         Robot start (0,0) +X. Engeller carpan zigzag pattern:
-           obs_1 (3.0, 0)    y=0      — robot karar verir (sag/sol)
-           obs_2 (5.5, +0.4) saga kayik — robot SOLA donmek zorunda
-           obs_3 (8.0, -0.4) sola kayik — robot SAGA donmek zorunda
-           obs_4 (10.5, 0)   yaya y=0  — yaya kacinma demo
-           obs_5 (13.5, +0.3) saga kayik — robot SOLA
-           obs_6 (16.0, 0)   final engel
-         Boyutlar 0.40-0.60m kup/silindir — gorulebilir + makul detour.
-         Robot her engelde farkli yon kararı verir; demo cesitlilik kazanır.
-         ================================================================= -->
-
-    <!-- ENGEL 1 — Kirmizi kutu (3.0, 0) -->
-    <model name="obs_1">
-      <static>true</static>
-      <pose>3.0 0 0.20 0 0 0</pose>
+    <!-- ═══════════════════════════════════════════════════════════════
+         BASLANGIC KAPISI — yesil, x=-0.5
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="start_gate_left">
+      <static>true</static><pose>-0.5 1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.40 0.40 0.40</size></box></geometry>
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="start_gate_right">
+      <static>true</static><pose>-0.5 -1.2 0.75 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
+          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="start_gate_beam">
+      <static>true</static><pose>-0.5 0 1.55 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
+          <material><ambient>0.30 0.70 0.30 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 1 (X=3) — SINIF 1: Sabit fiziksel engel
+         Kirmizi kutu, 0.50 m kup. Lidar net görür, avoider tetikler.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s1_box_red">
+      <static>true</static>
+      <pose>3.0 0 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
           <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.90 0.25 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- ENGEL 2 — Mavi kutu (5.5, +0.4) saga kayik -->
-    <model name="obs_2">
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 2 (X=6) — SINIF 2: Yakin mesafe kritik
+         Ince direk Ø 0.08 m × 1.5 m. Lidar zayif algilar; collision_monitor
+         StopZone (30 cm) son savunma. Robot yaklasinca ANINDA durmali.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s2_thin_pole">
       <static>true</static>
-      <pose>5.5 0.4 0.25 0 0 0</pose>
+      <pose>6.0 0 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
-          <material><ambient>0.20 0.30 0.80 1</ambient><diffuse>0.25 0.35 0.90 1</diffuse></material>
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>1.50</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>1.50</length></cylinder></geometry>
+          <material><ambient>0.40 0.30 0.20 1</ambient><diffuse>0.50 0.40 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <!-- direkten 1.5 m solda ek bir referans direk -->
+    <model name="s2_thin_pole_helper">
+      <static>true</static>
+      <pose>6.0 1.0 0.75 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>1.50</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>1.50</length></cylinder></geometry>
+          <material><ambient>0.40 0.30 0.20 1</ambient><diffuse>0.50 0.40 0.30 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- ENGEL 3 — Sari silindir (8.0, -0.4) sola kayik -->
-    <model name="obs_3">
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 3 (X=8) — SINIF 3: Negatif engel (cukur)
+         Iki kara dikdortgen yer-yüzünde — pothole görseli. Lidar GORMEZ
+         (2D düzlemde, yer altinda). terrain_perception RANSAC tespit eder.
+         Gercek robotta da Pi Camera + depth fusion gerek; sim'de ground
+         truth tabanli sentetik.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s3_pothole_1">
       <static>true</static>
-      <pose>8.0 -0.4 0.30 0 0 0</pose>
+      <pose>8.0 0.3 0.005 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><cylinder><radius>0.22</radius><length>0.60</length></cylinder></geometry></collision>
-        <visual name="v"><geometry><cylinder><radius>0.22</radius><length>0.60</length></cylinder></geometry>
-          <material><ambient>0.95 0.85 0.20 1</ambient><diffuse>1.00 0.95 0.25 1</diffuse></material>
+        <!-- collision YOK; sadece görsel cukur — bu negatif engel sinif.
+             Avoider lidar'la gormez; terrain_perception ile algılanmali. -->
+        <visual name="v">
+          <geometry><cylinder><radius>0.20</radius><length>0.01</length></cylinder></geometry>
+          <material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="s3_pothole_2">
+      <static>true</static>
+      <pose>8.0 -0.5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><cylinder><radius>0.25</radius><length>0.01</length></cylinder></geometry>
+          <material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <!-- Pothole etrafinda visible uyari koni (orange) — fiziksel engel gibi
+         davranir, lidar gorur — bu sayede avoider safe yola yönelir -->
+    <model name="s3_warning_cone_1">
+      <static>true</static>
+      <pose>8.0 0.8 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.12</radius><length>0.40</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.12</radius><length>0.40</length></cylinder></geometry>
+          <material><ambient>0.95 0.50 0.10 1</ambient><diffuse>1.00 0.60 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="s3_warning_cone_2">
+      <static>true</static>
+      <pose>8.0 -1.0 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.12</radius><length>0.40</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.12</radius><length>0.40</length></cylinder></geometry>
+          <material><ambient>0.95 0.50 0.10 1</ambient><diffuse>1.00 0.60 0.15 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- ENGEL 4 — Yaya (10.5, 0) -->
-    <model name="obs_4_person">
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 4 (X=10) — SINIF 4: Yukselti (rampa + esik)
+         Kucuk rampa (5 cm yukselti, 2 m egim). Robot tirmanmali (safe).
+         Yaninda 15 cm yukseklikte mavi esik (kerb) — gecemez.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s4_ramp_safe">
       <static>true</static>
-      <pose>10.5 0 0.0 0 0 0</pose>
+      <pose>10.0 0.6 0.025 0 0.05 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 1.2 0.05</size></box></geometry>
+          <surface><friction><ode><mu>1.5</mu><mu2>1.5</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v"><geometry><box><size>2.0 1.2 0.05</size></box></geometry>
+          <material><ambient>0.30 0.50 0.30 1</ambient><diffuse>0.40 0.60 0.40 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="s4_kerb_step">
+      <static>true</static>
+      <pose>10.0 -0.6 0.075 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 1.0 0.15</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 1.0 0.15</size></box></geometry>
+          <material><ambient>0.20 0.30 0.70 1</ambient><diffuse>0.25 0.35 0.80 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 5 (X=12.5) — SINIF 5: Dinamik engel (yaya)
+         Insan modeli (silindir gövde + küre kafa). Lidar 90 cm
+         yukseklikte gorur. Gercek robotta DL detection devreye girer.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s5_person">
+      <static>true</static>
+      <pose>12.5 0 0.0 0 0 0</pose>
       <link name="link">
         <collision name="body"><pose>0 0 0.45 0 0 0</pose>
           <geometry><cylinder><radius>0.20</radius><length>0.90</length></cylinder></geometry></collision>
@@ -163,84 +276,123 @@
       </link>
     </model>
 
-    <!-- ENGEL 5 — Yesil kutu (13.5, +0.3) saga kayik -->
-    <model name="obs_5">
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 6 (X=14-16) — SINIF 6: Dar gecit / koridor
+         Iki paralel duvar, 1.5 m araliklarla. Robot (0.50 m geniş)
+         arasindan gecebilir AMA marj az; collision_monitor StopZone
+         duvarlari görür, robot ortada kalmali.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s6_corridor_wall_left">
       <static>true</static>
-      <pose>13.5 0.3 0.25 0 0 0</pose>
+      <pose>15.0 0.75 0.35 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.50 0.50 0.50</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.50 0.50 0.50</size></box></geometry>
+        <collision name="c"><geometry><box><size>2.0 0.20 0.70</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 0.20 0.70</size></box></geometry>
+          <material><ambient>0.60 0.40 0.30 1</ambient><diffuse>0.70 0.50 0.40 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="s6_corridor_wall_right">
+      <static>true</static>
+      <pose>15.0 -0.75 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 0.20 0.70</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 0.20 0.70</size></box></geometry>
+          <material><ambient>0.60 0.40 0.30 1</ambient><diffuse>0.70 0.50 0.40 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON 7 (X=18) — SINIF 7: Riskli zemin (renkli patch)
+         3 renk patch: yesil (safe), sari (caution), kirmizi (risky).
+         terrain_perception bunlari ayrist; safety_supervisor hazard_state
+         uretir. Lidar bunlari gormez (yer hizasinda); algoritma renk veya
+         doku tabanli.
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="s7_surface_safe">
+      <static>true</static>
+      <pose>18.0 1.2 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>1.5 1.0 0.01</size></box></geometry>
           <material><ambient>0.20 0.65 0.30 1</ambient><diffuse>0.25 0.75 0.35 1</diffuse></material>
         </visual>
       </link>
     </model>
-
-    <!-- ENGEL 6 — Buyuk turuncu kutu (16, 0) final -->
-    <model name="obs_6">
+    <model name="s7_surface_caution">
       <static>true</static>
-      <pose>16.0 0 0.30 0 0 0</pose>
+      <pose>18.0 0 0.005 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.60 0.60 0.60</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.60 0.60 0.60</size></box></geometry>
-          <material><ambient>0.95 0.55 0.15 1</ambient><diffuse>1.00 0.65 0.20 1</diffuse></material>
+        <visual name="v">
+          <geometry><box><size>1.5 1.0 0.01</size></box></geometry>
+          <material><ambient>0.85 0.80 0.20 1</ambient><diffuse>0.95 0.90 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="s7_surface_risky">
+      <static>true</static>
+      <pose>18.0 -1.2 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>1.5 1.0 0.01</size></box></geometry>
+          <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.90 0.25 0.25 1</diffuse></material>
         </visual>
       </link>
     </model>
 
-    <!-- =========================  BASLANGIC / BITIS KEMERI  ========================= -->
-    <model name="start_gate_left">
-      <static>true</static><pose>-0.5 1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="start_gate_right">
-      <static>true</static><pose>-0.5 -1.2 0.75 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
-          <material><ambient>0.20 0.50 0.20 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-    <model name="start_gate_beam">
-      <static>true</static><pose>-0.5 0 1.55 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
-          <material><ambient>0.30 0.70 0.30 1</ambient><diffuse>0.30 0.70 0.30 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
+    <!-- ═══════════════════════════════════════════════════════════════
+         BITIS KAPISI — kirmizi, x=21
+         ═══════════════════════════════════════════════════════════════ -->
     <model name="finish_gate_left">
-      <static>true</static><pose>18.0 1.2 0.75 0 0 0</pose>
+      <static>true</static><pose>21.0 1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
           <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
     <model name="finish_gate_right">
-      <static>true</static><pose>18.0 -1.2 0.75 0 0 0</pose>
+      <static>true</static><pose>21.0 -1.2 0.75 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.10 0.10 1.5</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.10 0.10 1.5</size></box></geometry>
           <material><ambient>0.70 0.15 0.15 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
     <model name="finish_gate_beam">
-      <static>true</static><pose>18.0 0 1.55 0 0 0</pose>
+      <static>true</static><pose>21.0 0 1.55 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>0.10 2.6 0.10</size></box></geometry>
           <material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse></material>
         </visual>
       </link>
     </model>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ISTASYON LEVHALARI — her istasyonun yaninda dikey direk + tabela
+         ═══════════════════════════════════════════════════════════════ -->
+    <model name="sign_s1"><static>true</static><pose>3.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s2"><static>true</static><pose>6.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s3"><static>true</static><pose>8.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s4"><static>true</static><pose>10.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s5"><static>true</static><pose>12.5 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s6"><static>true</static><pose>15.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
+    <model name="sign_s7"><static>true</static><pose>18.0 -2.5 0.75 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>0.05 0.05 1.5</size></box></geometry>
+        <material><ambient>0.95 0.95 0.95 1</ambient></material></visual></link></model>
 
   </world>
 </sdf>
