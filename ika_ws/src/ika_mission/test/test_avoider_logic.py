@@ -69,23 +69,16 @@ def test_driving_empty_world_drives_forward():
     assert c.next_state.phase == AvoiderPhase.DRIVING
 
 
-def test_driving_heading_correction_when_yaw_off_goal():
-    """Goal heading 0, current yaw 0.2 → angular_z < 0 (sağa dön)."""
+def test_driving_no_heading_correction_in_default_config():
+    """KULLANICI ISTEGI: DRIVING'de heading correction kapatildi
+    (heading_kp=0). Robot saçma sapma yapmasin diye. Heading sadece
+    REALIGNING'de düzeltilir."""
     s = AvoiderState(goal_heading_rad=0.0)
     c = decide(s, _open_scan(), math.radians(360), "CLEAR",
                current_yaw=0.2, odom_delta_m=0.0, cfg=_cfg())
-    # Heading correction: -0.2 yaw err → angular_z negatif (saga dön)
-    assert c.angular_z < 0
-    assert c.linear_x > 0  # hala ileri sürüyor (kritik değil)
-
-
-def test_driving_critical_heading_err_stops_and_turns():
-    """Çok sapmışsak (yaw_err > 0.40) sadece dön, ileri sürme."""
-    s = AvoiderState(goal_heading_rad=0.0)
-    c = decide(s, _open_scan(), math.radians(360), "CLEAR",
-               current_yaw=1.0, odom_delta_m=0.0, cfg=_cfg())  # 1 rad off
-    assert c.linear_x == 0.0
-    assert c.angular_z < 0  # saga dön (current 1, goal 0 → -)
+    # heading_kp=0 ve max_correction=0 -> angular_z = 0
+    assert math.isclose(c.angular_z, 0.0)
+    assert c.linear_x > 0  # ileri sürüyor
 
 
 def test_driving_distance_accumulates():
@@ -121,10 +114,10 @@ def test_driving_lidar_obstacle_triggers_avoiding():
 
 
 def test_driving_camera_obstacle_triggers_avoiding():
-    """Camera DL detection 1.0m'de (< 1.5m threshold) → AVOIDING tetikle."""
+    """Camera DL detection 0.40m'de (< 0.50m threshold) → AVOIDING."""
     s = AvoiderState(goal_heading_rad=0.0)
     c = decide(s, _open_scan(), math.radians(360), "CLEAR", 0.0, 0.0, _cfg(),
-               camera_obstacle_distance_m=1.0)
+               camera_obstacle_distance_m=0.40)
     assert c.next_state.phase == AvoiderPhase.AVOIDING
 
 
@@ -222,11 +215,11 @@ def test_passing_hazard_does_NOT_trigger():
 
 
 def test_passing_camera_close_triggers_avoiding():
-    """Camera < 1.5m → defansif AVOIDING."""
+    """Camera < 0.50m → defansif AVOIDING."""
     s = AvoiderState(phase=AvoiderPhase.PASSING, pass_distance_m=0.20,
                      goal_heading_rad=0.0)
     c = decide(s, _open_scan(), math.radians(360), "CLEAR", 0.0, 0.0, _cfg(),
-               camera_obstacle_distance_m=1.0)
+               camera_obstacle_distance_m=0.40)
     assert c.next_state.phase == AvoiderPhase.AVOIDING
 
 

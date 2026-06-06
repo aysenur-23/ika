@@ -63,16 +63,21 @@ class AvoiderConfig:
     turn_speed_rps: float = 0.5
     obstacle_distance_m: float = 0.35       # lidar tetikleyici eşik
     release_distance_m: float = 0.60        # AVOIDING'den çıkış (hysteresis)
-    camera_detection_distance_m: float = 1.50  # camera DL erken uyarı eşiği
+    # KULLANICI: "Engele yaklaşmadan erken dönüyor"
+    # Camera threshold lidar'dan biraz daha geniş tutuldu (0.50m).
+    # Daha uzaktan tetiklemez. Lidar 0.35m birincil.
+    camera_detection_distance_m: float = 0.50
     front_arc_deg: float = 50.0
     pass_clear_distance_m: float = 0.40
     target_distance_m: float = 10000.0      # mission mode: sonsuz
     yaw_tolerance_rad: float = 0.15
-    # Yaw kontrol (DRIVING + REALIGNING'de heading hata düzeltmesi)
-    heading_kp: float = 1.5                 # heading hata × Kp → angular_z
-    max_heading_correction_rps: float = 0.4 # heading correction üst sınırı
-    # DRIVING'de heading hata > bu ise sadece dön (linear=0)
-    heading_critical_err_rad: float = 0.40
+    # Heading correction DRIVING'de KAPATILDI.
+    # Sebep: yaw noise (EKF, odom drift) sürekli minik düzeltmelere yol
+    # açıyordu — robot "saçma sapan" tepkiler veriyordu. DRIVING düz gider.
+    # Heading düzeltmesi sadece REALIGNING fazında (engel sonrası).
+    heading_kp: float = 0.0                 # 0 = devre dışı
+    max_heading_correction_rps: float = 0.0
+    heading_critical_err_rad: float = math.inf  # asla tetiklenmez
 
 
 @dataclass
