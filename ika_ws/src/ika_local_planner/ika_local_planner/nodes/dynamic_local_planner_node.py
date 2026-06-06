@@ -410,11 +410,34 @@ class DynamicLocalPlannerNode(Node):
             cmd.angular.z = 0.0
             phase = "HOLD"
 
-        # 7) Reflex safety — son savunma katmanı
-        front_min = summary.get('min_obs_dist', -1.0)
+        # 7) Reflex safety — son savunma katmanı.
+        # Önemli: summarize_costmap yalnızca dar ±0.35m şeridi kontrol eder;
+        # bypass sırasında engel yan tarafa kayar ve görünmez. Bu nedenle
+        # raw lidar üzerinden ±front_arc/2 derecelik geniş ön ark kullanıyoruz.
+        front_min_raw = float('inf')
+        try:
+            half_arc = math.radians(
+                self.get_parameter('front_arc_deg').value) / 2.0
+            amin = scan.angle_min
+            ainc = scan.angle_increment
+            for i, r in enumerate(scan.ranges):
+                try:
+                    rf = float(r)
+                except (TypeError, ValueError):
+                    continue
+                if rf <= 0 or not math.isfinite(rf):
+                    continue
+                ang = _wrap_pi(amin + i * ainc)
+                if abs(ang) > half_arc:
+                    continue
+                if rf < front_min_raw:
+                    front_min_raw = rf
+        except Exception:
+            front_min_raw = float('inf')
+
         reflex = False
-        if isinstance(front_min, (int, float)) and \
-                front_min >= 0.0 and front_min < self._reflex_stop_d:
+        if math.isfinite(front_min_raw) and \
+                front_min_raw < self._reflex_stop_d:
             reflex = True
             cmd.linear.x = 0.0
             # Boş tarafa kaç

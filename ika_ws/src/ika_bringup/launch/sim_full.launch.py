@@ -131,7 +131,7 @@ def generate_launch_description():
                 'default_speed_mps': 0.22,
                 'slow_speed_mps': 0.12,
                 'max_angular_rps': 0.55,
-                'reflex_stop_distance_m': 0.20,
+                'reflex_stop_distance_m': 0.30,
                 'safety_cost_threshold': 0.65,
                 'lookahead_m': 1.2,
                 'front_arc_deg': 60.0,
