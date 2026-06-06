@@ -98,3 +98,25 @@ def test_heading_offset_clamp_does_not_exceed_60deg():
     cmd = compute_rejoin_command(pose, path_y=0.0, target_heading=0.0)
     # yaw_error = -clamped(atan(kp_y*y_err)) but ≤ 60° = ~1.047
     assert abs(cmd.yaw_error) <= math.radians(60) + 0.01
+
+
+# ─── TASK-4B-2: rejoin "y=-0.7 → path=0" senaryosu ───────────────────
+
+def test_rejoin_y_minus_07_corrects_left():
+    """Robot y=-0.7'de (sağa kaymış); rejoin sola dönmeli."""
+    pose = Pose2D(10.0, -0.7, 0.0)
+    cmd = compute_rejoin_command(pose, path_y=0.0, target_heading=0.0)
+    # path_y - pose.y = +0.7 → robot SOLA dönmeli → angular_z > 0
+    assert cmd.angular_z > 0.0
+    assert cmd.linear_x > 0.0
+    assert cmd.done is False
+
+
+def test_rejoin_done_in_band():
+    pose = Pose2D(10.0, 0.05, 0.05)
+    assert should_finish_rejoin(pose, path_y=0.0, target_heading=0.0) is True
+
+
+def test_rejoin_not_done_just_outside_band():
+    pose = Pose2D(10.0, 0.2, 0.0)  # 0.2 > y_tolerance 0.15
+    assert should_finish_rejoin(pose, path_y=0.0, target_heading=0.0) is False

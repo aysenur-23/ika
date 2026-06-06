@@ -49,6 +49,11 @@ class PlannerConfig:
     goal_alignment_weight: float = 0.5
     # Bir candidate "boş" sayılması için ray boyunca max cost eşiği
     ray_clear_cost_threshold: float = 0.65
+    # TASK-4B-2: hysteresis — önceki seçilen offset'e yakın adaylara bonus.
+    hysteresis_bonus: float = 0.15
+    hysteresis_distance_penalty: float = 0.10
+    # Yeni offset, mevcut offset'ten en az bu kadar iyi skor verirse switch.
+    switch_margin: float = 0.20
 
 
 @dataclass
@@ -144,11 +149,16 @@ def score_candidate_corridors(
     lateral_offsets: Sequence[float],
     target_offset_y: float,
     config: PlannerConfig,
+    last_offset_y: Optional[float] = None,
 ) -> List[Tuple[float, float, float, bool]]:
     """Her candidate için (offset_y, score, max_cost, blocked) listesi.
 
     score düşük = iyi. Blocked candidate'lar listeye dahil edilir ama
     çağıran filtre edebilir.
+
+    TASK-4B-2: last_offset_y verilirse hysteresis uygulanır:
+      - aynı offset → -hysteresis_bonus
+      - yakın offset → küçük mesafe cezası: distance_penalty * |off - last|
     """
     out: List[Tuple[float, float, float, bool]] = []
     for off in lateral_offsets:
@@ -156,6 +166,12 @@ def score_candidate_corridors(
         blocked = cmax >= config.ray_clear_cost_threshold
         alignment_pen = abs(off - target_offset_y) * config.goal_alignment_weight
         score = csum + alignment_pen + (1.0 if blocked else 0.0) * 10.0
+        if last_offset_y is not None:
+            dist = abs(off - last_offset_y)
+            if dist < 1e-6:
+                score -= config.hysteresis_bonus
+            else:
+                score += config.hysteresis_distance_penalty * dist
         out.append((off, score, cmax, blocked))
     return out
 
@@ -195,6 +211,8 @@ def plan_local_waypoint(
     costmap: LocalCostmap,
     behavior_decision: BehaviorDecision,
     config: Optional[PlannerConfig] = None,
+    last_offset_y: Optional[float] = None,
+    forced_side: Optional[str] = None,
 ) -> LocalPlan:
     """Costmap + hedef + davranış → lokal waypoint + hız.
 
@@ -272,15 +290,30 @@ def plan_local_waypoint(
     candidates = score_candidate_corridors(
         costmap, lookahead, cfg.lateral_offsets,
         target_offset_y=target_y_at_lookahead, config=cfg,
+        last_offset_y=last_offset_y,  # TASK-4B-2 hysteresis
     )
-    # preferred_side: davranış kararından veya BYPASS_LEFT/RIGHT modundan
-    pref = behavior_decision.preferred_side
-    if mode == BehaviorMode.BYPASS_LEFT:
-        pref = 'left'
-    elif mode == BehaviorMode.BYPASS_RIGHT:
-        pref = 'right'
+    # preferred_side: davranış kararından veya BYPASS_LEFT/RIGHT modundan.
+    # forced_side (deadlock breaker) varsa hepsini geçer.
+    if forced_side in ('left', 'right'):
+        pref = forced_side
+    else:
+        pref = behavior_decision.preferred_side
+        if mode == BehaviorMode.BYPASS_LEFT:
+            pref = 'left'
+        elif mode == BehaviorMode.BYPASS_RIGHT:
+            pref = 'right'
 
     best = choose_bypass_side(candidates, preferred_side=pref)
+    # TASK-4B-2: switch_margin — last_offset_y'ye yakın aynı side aday varsa
+    # ve yeni "best" en az switch_margin kadar daha iyi değilse, last'i koru.
+    if (best is not None and last_offset_y is not None
+            and forced_side is None):
+        same_or_close = [c for c in candidates
+                          if not c[3] and abs(c[0] - last_offset_y) < 1e-3]
+        if same_or_close:
+            last_c = same_or_close[0]
+            if best[1] + cfg.switch_margin > last_c[1]:
+                best = last_c
     if best is None:
         return LocalPlan(
             success=False, mode=BehaviorMode.HOLD.value,

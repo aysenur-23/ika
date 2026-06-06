@@ -211,3 +211,107 @@ def test_choose_bypass_side_left_preference():
                   (0.5, 1.0, 0.0, False)]   # sol, skor 1
     best = choose_bypass_side(candidates, preferred_side='left')
     assert best is not None and best[0] == 0.5
+
+
+# ─── TASK-4B-2: hysteresis ────────────────────────────────────────────
+
+def test_hysteresis_bonus_for_same_offset():
+    from ika_local_planner.local_planner_logic import score_candidate_corridors
+    cm = _empty_cm()
+    cfg = PlannerConfig(
+        lateral_offsets=(-1.0, 0.0, 1.0),
+        hysteresis_bonus=0.5, hysteresis_distance_penalty=0.0,
+    )
+    scored_no_hist = score_candidate_corridors(
+        cm, lookahead=1.0,
+        lateral_offsets=cfg.lateral_offsets,
+        target_offset_y=0.0, config=cfg, last_offset_y=None,
+    )
+    scored_hist = score_candidate_corridors(
+        cm, lookahead=1.0,
+        lateral_offsets=cfg.lateral_offsets,
+        target_offset_y=0.0, config=cfg, last_offset_y=1.0,
+    )
+    # Hysteresis altında off=1.0 skoru 0.5 düşmüş olmalı
+    by_off_no = {c[0]: c[1] for c in scored_no_hist}
+    by_off = {c[0]: c[1] for c in scored_hist}
+    assert by_off[1.0] < by_off_no[1.0] - 0.4
+
+
+def test_hysteresis_distance_penalty_for_far_offset():
+    from ika_local_planner.local_planner_logic import score_candidate_corridors
+    cm = _empty_cm()
+    cfg = PlannerConfig(
+        lateral_offsets=(-1.0, 0.0, 1.0),
+        hysteresis_bonus=0.0, hysteresis_distance_penalty=0.5,
+    )
+    scored = score_candidate_corridors(
+        cm, lookahead=1.0,
+        lateral_offsets=cfg.lateral_offsets,
+        target_offset_y=0.0, config=cfg, last_offset_y=1.0,
+    )
+    by_off = {c[0]: c[1] for c in scored}
+    # Uzaktaki off=-1.0, |off - last| = 2 → penalty 1.0 ekleniyor
+    assert by_off[-1.0] > by_off[1.0] + 0.9
+
+
+def test_switch_margin_keeps_last_when_marginally_better():
+    """Yeni best, last_offset'ten switch_margin kadar daha iyi DEĞİLse last kalır.
+
+    Kural: best.score + switch_margin > last.score → KEEP last.
+    Yani yeni best, last'tan en az `switch_margin` kadar daha iyi olmalı.
+    """
+    cm = _empty_cm()
+    cfg = PlannerConfig(
+        lateral_offsets=(-0.6, 0.0, 0.6),
+        hysteresis_bonus=0.0, hysteresis_distance_penalty=0.0,
+        switch_margin=0.50,  # büyük margin → 0.5 fark gerekir
+    )
+    decision = BehaviorDecision(mode=BehaviorMode.GENERIC_BYPASS,
+                                preferred_side='auto', speed_scale=0.8)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    # Boş costmap → off=0 score=0, off=±0.6 score=0.3 (alignment 0.5*0.6).
+    # Yeni best=off=0 last_c=off=0.6 (score=0.3); margin 0.5 → 0+0.5>0.3 True
+    # → KEEP last_c (off=0.6).
+    plan = plan_local_waypoint(
+        pose, Waypoint(5.0, 0.0), cm, decision, cfg,
+        last_offset_y=0.6,
+    )
+    assert plan.success
+    assert plan.local_waypoint.y > 0.4  # ≈ last offset (0.6)
+
+
+def test_switch_margin_switches_when_clearly_better():
+    """Yeni best, switch_margin'den fazla daha iyiyse switch olur."""
+    cm = _empty_cm()
+    cfg = PlannerConfig(
+        lateral_offsets=(-0.6, 0.0, 0.6),
+        hysteresis_bonus=0.0, hysteresis_distance_penalty=0.0,
+        switch_margin=0.10,  # küçük margin
+    )
+    decision = BehaviorDecision(mode=BehaviorMode.GENERIC_BYPASS,
+                                preferred_side='auto', speed_scale=0.8)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    # off=0 score=0, off=0.6 score=0.3. Margin 0.1 → 0+0.1>0.3 False → SWITCH
+    plan = plan_local_waypoint(
+        pose, Waypoint(5.0, 0.0), cm, decision, cfg,
+        last_offset_y=0.6,
+    )
+    assert plan.success
+    assert abs(plan.local_waypoint.y) < 0.1  # ≈ off=0
+
+
+def test_forced_side_overrides_preferred():
+    """forced_side verildiğinde decision.preferred_side ignore edilir."""
+    # Sağ tarafa engel koyalım, ortayı blokla → sağ candidate blocked
+    rs = _scan_with_obstacle(at_x=1.0, at_y=0.0)
+    cm = build_costmap_from_scan(rs, -math.pi, math.radians(1.0), _CFG_CM)
+    decision = BehaviorDecision(mode=BehaviorMode.GENERIC_BYPASS,
+                                preferred_side='left', speed_scale=0.8)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    plan_left = plan_local_waypoint(
+        pose, Waypoint(5.0, 0.0), cm, decision, _CFG_PL,
+        forced_side='right',
+    )
+    assert plan_left.success
+    assert plan_left.local_waypoint.y < -0.05  # forced right'a uydu

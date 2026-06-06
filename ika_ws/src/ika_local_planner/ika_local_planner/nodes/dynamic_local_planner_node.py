@@ -44,8 +44,12 @@ from ika_local_planner.local_planner_logic import (
     Pose2D, Waypoint, PlannerConfig, LocalPlan,
     plan_local_waypoint,
 )
-# path_rejoin doğrudan kullanılmıyor (planner zaten merkez offset'i tercih
-# eder); rejoin_required flag debug'a yansıtılır. TASK-4B-2'de devreye girer.
+from ika_local_planner.path_rejoin import (
+    RejoinConfig, compute_rejoin_command, should_finish_rejoin,
+)
+from ika_local_planner.planner_state import (
+    BehaviorSmoother, DeadlockConfig, DeadlockState, OffsetMemory,
+)
 
 # Default semantic weights (sim sınıfları). Bilinmeyen → unknown_cost.
 _DEFAULT_SEMANTIC_WEIGHTS = {
@@ -111,6 +115,16 @@ class DynamicLocalPlannerNode(Node):
         self.declare_parameter('costmap_height_m', 4.0)
         self.declare_parameter('costmap_res_m', 0.10)
         self.declare_parameter('inflation_radius_m', 0.30)
+        # TASK-4B-2 tuning parametreleri
+        self.declare_parameter('offset_hysteresis_bonus', 0.15)
+        self.declare_parameter('offset_switch_margin', 0.20)
+        self.declare_parameter('behavior_confirm_ticks', 3)
+        self.declare_parameter('deadlock_window_s', 3.0)
+        self.declare_parameter('deadlock_progress_m', 0.08)
+        self.declare_parameter('deadlock_escape_s', 3.0)
+        self.declare_parameter('deadlock_cooldown_s', 5.0)
+        self.declare_parameter('rejoin_y_threshold_m', 0.30)
+        self.declare_parameter('rejoin_speed_mps', 0.14)
 
         gp = self.get_parameter
         self._auto_start = bool(gp('auto_start').value)
@@ -134,7 +148,26 @@ class DynamicLocalPlannerNode(Node):
             safety_cost_threshold=float(gp('safety_cost_threshold').value),
             default_speed_mps=float(gp('default_speed_mps').value),
             slow_speed_mps=float(gp('slow_speed_mps').value),
+            hysteresis_bonus=float(gp('offset_hysteresis_bonus').value),
+            switch_margin=float(gp('offset_switch_margin').value),
         )
+        # TASK-4B-2 stateful helper'lar
+        self._smoother = BehaviorSmoother(
+            confirm_ticks=int(gp('behavior_confirm_ticks').value))
+        self._deadlock = DeadlockState(config=DeadlockConfig(
+            window_s=float(gp('deadlock_window_s').value),
+            progress_m=float(gp('deadlock_progress_m').value),
+            escape_s=float(gp('deadlock_escape_s').value),
+            cooldown_s=float(gp('deadlock_cooldown_s').value),
+        ))
+        self._offset_mem = OffsetMemory()
+        self._rejoin_y_thr = float(gp('rejoin_y_threshold_m').value)
+        self._rejoin_speed = float(gp('rejoin_speed_mps').value)
+        self._rejoin_cfg = RejoinConfig(
+            forward_speed_mps=self._rejoin_speed,
+            max_angular_z=float(gp('max_angular_rps').value),
+        )
+        self._rejoin_active: bool = False
 
         # ── Runtime state ────────────────────────────────────────────
         self._started = self._auto_start
@@ -276,23 +309,76 @@ class DynamicLocalPlannerNode(Node):
         # 3) Summary
         summary = summarize_costmap(cm)
 
-        # 4) Behavior decision
-        decision = select_behavior(
+        # 4) Behavior decision (raw)
+        raw_decision = select_behavior(
             detections=self._detections,
             costmap_summary=summary,
         )
 
-        # 5) Plan
+        # TASK-4B-2: deadlock detector + behavior smoothing
+        now_s = time.time()
+        self._deadlock.update(now_s, pose.x, pose.y,
+                              current_side=self._offset_mem.last_chosen_side)
+
+        # Smoothing — güvenlik durumlarında bypass et
+        force_bypass = (raw_decision.mode == BehaviorMode.HOLD
+                        or summary.get('min_obs_dist', -1.0) >= 0.0
+                        and summary.get('min_obs_dist', 9.0)
+                            < self._reflex_stop_d * 1.5)
+        smoothed_mode_str = self._smoother.update(
+            raw_decision.mode.value, force_bypass=force_bypass)
+        # Smoothed BehaviorDecision üret
+        smoothed_mode = BehaviorMode(smoothed_mode_str)
+        decision = BehaviorDecision(
+            mode=smoothed_mode,
+            target_class=raw_decision.target_class,
+            preferred_side=raw_decision.preferred_side,
+            speed_scale=raw_decision.speed_scale,
+            hold_time_s=raw_decision.hold_time_s,
+            reason=f"smooth={smoothed_mode_str}/raw={raw_decision.mode.value} "
+                   f"{raw_decision.reason}",
+        )
+
+        # 5) Plan — hysteresis + forced_side
         plan = plan_local_waypoint(
             pose=pose, target_waypoint=self._target,
             costmap=cm, behavior_decision=decision,
             config=self._planner_cfg,
+            last_offset_y=self._offset_mem.last_offset_y,
+            forced_side=self._deadlock.forced_side if self._deadlock.active
+                        else None,
         )
         self._last_plan = plan
 
-        # 6) Controller — basit go-to-waypoint
-        cmd = Twist()
+        # offset memory güncelle (sadece başarılı plan için, robot frame'de
+        # offset olarak local_waypoint_y - pose_y kullan — pose.yaw≈0 sim)
         if plan.success and plan.local_waypoint is not None:
+            offset_y_robot = plan.local_waypoint.y - pose.y
+            chosen_side = ("left" if offset_y_robot > 0.05 else
+                           "right" if offset_y_robot < -0.05 else "none")
+            self._offset_mem.record(offset_y_robot, chosen_side)
+
+        # 6) Path rejoin — engelden geçildikten sonra ana hatta dön
+        rejoin_active = False
+        if (plan.success and plan.local_waypoint is not None
+                and smoothed_mode == BehaviorMode.DRIVE
+                and abs(pose.y - self._path_y) > self._rejoin_y_thr
+                and not summary.get('front_blocked', False)):
+            rejoin_active = True
+        self._rejoin_active = rejoin_active
+
+        # 7) Controller — go-to-waypoint VEYA rejoin
+        cmd = Twist()
+        if rejoin_active:
+            rj = compute_rejoin_command(
+                pose, path_y=self._path_y,
+                target_heading=self._target_heading,
+                config=self._rejoin_cfg,
+            )
+            cmd.linear.x = float(rj.linear_x)
+            cmd.angular.z = float(rj.angular_z)
+            phase = "REJOINING"
+        elif plan.success and plan.local_waypoint is not None:
             lwp = plan.local_waypoint
             dx = lwp.x - pose.x
             dy = lwp.y - pose.y
@@ -300,7 +386,6 @@ class DynamicLocalPlannerNode(Node):
             yaw_err = _wrap_pi(target_angle - pose.yaw)
             angular_z = _clip(self._kp_yaw * yaw_err,
                               -self._max_angular, self._max_angular)
-            # Yaw'a göre forward kıs
             linear_x = plan.speed_mps * max(0.2, 1.0 - min(abs(yaw_err), 1.0))
             cmd.linear.x = float(linear_x)
             cmd.angular.z = float(angular_z)
@@ -473,6 +558,21 @@ class DynamicLocalPlannerNode(Node):
             "reflex_active": bool(self._reflex_active),
             "target_x": _safe(self._target.x, 0.0),
             "target_y": _safe(self._target.y, 0.0),
+            # TASK-4B-2 telemetri
+            "raw_behavior_mode": str(self._smoother._candidate
+                                     or self._smoother.current),
+            "smoothed_behavior_mode": self._smoother.current,
+            "behavior_candidate_count": int(self._smoother.candidate_count()),
+            "behavior_switch_count": int(self._smoother.switch_count),
+            "selected_offset_y": _safe(self._offset_mem.last_offset_y, 0.0),
+            "offset_switch_count": int(self._offset_mem.switch_count),
+            "deadlock_active": bool(self._deadlock.active),
+            "deadlock_progress_m": _safe(self._deadlock.last_progress(), 0.0),
+            "forced_side": (self._deadlock.forced_side or "none"),
+            "deadlock_escape_remaining": _safe(
+                self._deadlock.escape_remaining(time.time()), 0.0),
+            "rejoin_active": bool(self._rejoin_active),
+            "path_y": _safe(self._path_y, 0.0),
         }, allow_nan=False)
         self._pub_debug.publish(dbg)
 
