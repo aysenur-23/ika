@@ -49,7 +49,8 @@ GOAL_TOLERANCE = 0.50                 # m — bundan yakın = goal'e vardı
 
 
 class TrialMonitor(Node):
-    def __init__(self, collision_threshold: float = DEFAULT_COLLISION_THRESHOLD):
+    def __init__(self, collision_threshold: float = DEFAULT_COLLISION_THRESHOLD,
+                 goal_xy: tuple = DEFAULT_GOAL_XY):
         super().__init__('trial_monitor')
 
         # state
@@ -58,6 +59,7 @@ class TrialMonitor(Node):
         self.collision_triggered = False
         self.t_start = None
         self.collision_threshold = collision_threshold
+        self.goal_xy = tuple(goal_xy)
         self.map_received = False
         self.local_costmap_received = False
         self.global_costmap_received = False
