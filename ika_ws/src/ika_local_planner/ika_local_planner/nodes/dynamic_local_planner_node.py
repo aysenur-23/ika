@@ -320,11 +320,19 @@ class DynamicLocalPlannerNode(Node):
         self._deadlock.update(now_s, pose.x, pose.y,
                               current_side=self._offset_mem.last_chosen_side)
 
-        # Smoothing — güvenlik durumlarında bypass et
-        force_bypass = (raw_decision.mode == BehaviorMode.HOLD
-                        or summary.get('min_obs_dist', -1.0) >= 0.0
-                        and summary.get('min_obs_dist', 9.0)
-                            < self._reflex_stop_d * 1.5)
+        # Smoothing — güvenlik durumlarında bypass et:
+        #   - HOLD
+        #   - reflex yakın (min_obs < reflex * 1.5)
+        #   - generic_bypass / stop / slow → defensif (her zaman bypass smoothing)
+        #     ki obstacle yakınken smoother DRIVE'a takılıp komut geciktirmesin.
+        defensive_modes = (BehaviorMode.HOLD, BehaviorMode.GENERIC_BYPASS,
+                           BehaviorMode.STOP_AND_BYPASS,
+                           BehaviorMode.SLOW_CHECK_AND_BYPASS)
+        min_obs_force = summary.get('min_obs_dist', -1.0)
+        close = (isinstance(min_obs_force, (int, float))
+                 and min_obs_force >= 0.0
+                 and min_obs_force < self._reflex_stop_d * 1.5)
+        force_bypass = (raw_decision.mode in defensive_modes) or close
         smoothed_mode_str = self._smoother.update(
             raw_decision.mode.value, force_bypass=force_bypass)
         # Smoothed BehaviorDecision üret
@@ -340,11 +348,18 @@ class DynamicLocalPlannerNode(Node):
         )
 
         # 5) Plan — hysteresis + forced_side
+        # ACİL DURUM: engel çok yakınsa hysteresis kapanır (yan kaçışı
+        # engellemesin). last_offset_y=None → hysteresis devre dışı.
+        min_obs = summary.get('min_obs_dist', -1.0)
+        emergency = (isinstance(min_obs, (int, float)) and min_obs >= 0.0
+                     and min_obs < self._planner_cfg.hysteresis_disable_dist)
+        last_off_for_plan = (None if emergency
+                             else self._offset_mem.last_offset_y)
         plan = plan_local_waypoint(
             pose=pose, target_waypoint=self._target,
             costmap=cm, behavior_decision=decision,
             config=self._planner_cfg,
-            last_offset_y=self._offset_mem.last_offset_y,
+            last_offset_y=last_off_for_plan,
             forced_side=self._deadlock.forced_side if self._deadlock.active
                         else None,
         )

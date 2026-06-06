@@ -50,10 +50,14 @@ class PlannerConfig:
     # Bir candidate "boş" sayılması için ray boyunca max cost eşiği
     ray_clear_cost_threshold: float = 0.65
     # TASK-4B-2: hysteresis — önceki seçilen offset'e yakın adaylara bonus.
-    hysteresis_bonus: float = 0.15
-    hysteresis_distance_penalty: float = 0.10
+    # Gözlemden sonra default daha konservatif (yan kaçışı engellemesin).
+    hysteresis_bonus: float = 0.08
+    hysteresis_distance_penalty: float = 0.05
     # Yeni offset, mevcut offset'ten en az bu kadar iyi skor verirse switch.
-    switch_margin: float = 0.20
+    # Düşük margin → engel önünde hızlı geçiş.
+    switch_margin: float = 0.05
+    # Acil durum: front_min < bu eşik altındaysa hysteresis tamamen kapanır.
+    hysteresis_disable_dist: float = 0.50
 
 
 @dataclass
