@@ -184,15 +184,17 @@ class TrialMonitor(Node):
             try:
                 self.tf_buf.lookup_transform('map', 'base_link', Time())
                 # Settle: costmap obstacle birikimi için bekleme.
-                # 15s denendi, varyansı artırdı (bazı trial'lar instant
-                # abort). 5s sweet spot — yeterli scan birikimi + BT
-                # zaman aşımı tetiklenmez.
+                # capture_plan.py'da 30s sleep ile /plan eğri çıkıyor.
+                # Trial'da daha kısa süre yetmiyordu (5s, 15s denendi).
+                # 25s denenecek — capture'daki gerçek başarı koşulu.
+                # Probe çıkış COLLISION_THRESHOLD'ın eski env override
+                # üzerinden değiştirilebilir.
                 ready_time = time.time() - t0
                 self.get_logger().info(
                     f'Probe OK: {ready_time:.1f}s '
                     f'(odom+nav2+map+local+global+tf). '
-                    f'5s costmap+BT settle için bekliyorum...')
-                settle_end = time.time() + 5.0
+                    f'25s costmap obstacle birikimi için bekliyorum...')
+                settle_end = time.time() + 25.0
                 while time.time() < settle_end:
                     rclpy.spin_once(self, timeout_sec=0.1)
                 self.get_logger().info(
