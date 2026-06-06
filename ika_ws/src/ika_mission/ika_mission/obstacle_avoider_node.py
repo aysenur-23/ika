@@ -27,6 +27,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
+from std_srvs.srv import Trigger
 
 try:
     from vision_msgs.msg import Detection3DArray
@@ -66,6 +67,10 @@ class ObstacleAvoiderNode(Node):
         self.declare_parameter('heading_critical_err_rad', 9999.0)
         self.declare_parameter('control_rate_hz', 10.0)
         self.declare_parameter('start_delay_s', 3.0)
+        # TASK-3.1: trial harness için kapı. Varsayılan true → mevcut launch
+        # davranışı bozulmaz. Trial modunda false ile başlat; /avoider/start
+        # servisi çağrılana kadar robot hareket etmez.
+        self.declare_parameter('auto_start', True)
 
         self._cfg = AvoiderConfig(
             forward_speed_mps=float(self.get_parameter('forward_speed_mps').value),
@@ -94,6 +99,13 @@ class ObstacleAvoiderNode(Node):
         self._camera_active_class: str = "none"
         self._start_time = time.time()
         self._start_delay = float(self.get_parameter('start_delay_s').value)
+        # TASK-3.1: started flag — auto_start=False ise /avoider/start ile aç
+        self._auto_start = bool(self.get_parameter('auto_start').value)
+        self._started = self._auto_start
+        if not self._started:
+            self.get_logger().info(
+                "auto_start=False → /avoider/start servisi bekleniyor. "
+                "Robot servis çağrılana kadar hareket etmeyecek.")
 
         qos_sensor = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -119,6 +131,12 @@ class ObstacleAvoiderNode(Node):
         # Telemetri: sade state + zengin debug
         self._pub_state_short = self.create_publisher(String, '/avoider/state', 10)
         self._pub_debug = self.create_publisher(String, '/avoider/debug', 10)
+
+        # TASK-3.1: start/stop servisleri
+        self._srv_start = self.create_service(
+            Trigger, '/avoider/start', self._on_start_srv)
+        self._srv_stop = self.create_service(
+            Trigger, '/avoider/stop', self._on_stop_srv)
 
         rate = float(self.get_parameter('control_rate_hz').value)
         self._period = 1.0 / max(rate, 1.0)
@@ -173,7 +191,73 @@ class ObstacleAvoiderNode(Node):
         self._camera_obstacle_dist = min_d
         self._camera_active_class = active_class
 
+    # ──────────────────────────────────────────────────────────────────
+    # TASK-3.1: start/stop servisleri
+    # ──────────────────────────────────────────────────────────────────
+    def _on_start_srv(self, request, response):
+        if self._started:
+            response.success = True
+            response.message = "already started"
+            return response
+        # Start delay'i bu andan itibaren sıfırla (monitor hazır olunca)
+        self._start_time = time.time()
+        self._started = True
+        self.get_logger().info("/avoider/start çağrıldı → robot armed.")
+        response.success = True
+        response.message = "started"
+        return response
+
+    def _on_stop_srv(self, request, response):
+        self._started = False
+        # Anında durdurma komutu basalım
+        m = Twist()
+        self._pub_cmd.publish(m)
+        self.get_logger().info("/avoider/stop çağrıldı → robot disarmed (zero cmd).")
+        response.success = True
+        response.message = "stopped"
+        return response
+
+    def _publish_idle_telemetry(self):
+        """auto_start=False ve henüz start gelmemişken telemetri."""
+        # Zero cmd
+        zm = Twist()
+        self._pub_cmd.publish(zm)
+        # Legacy /avoider_state JSON (monitor uyumluluğu için)
+        sj = String()
+        sj.data = json.dumps({
+            "phase": "IDLE", "started": False,
+            "distance_clear_m": 0.0, "goal_heading": 0.0,
+            "current_yaw": round(self._current_yaw, 3),
+            "yaw_err": 0.0, "avoid_direction": 0,
+            "lidar_min_obs": -1.0, "camera_min_obs": -1.0,
+            "hazard_action": self._last_hazard_action,
+            "reason": "awaiting /avoider/start",
+        }, allow_nan=False)
+        self._pub_state.publish(sj)
+        # Sade state
+        ss = String()
+        ss.data = "IDLE"
+        self._pub_state_short.publish(ss)
+        # Debug JSON — started=False
+        dbg = String()
+        dbg.data = json.dumps({
+            "state": "IDLE",
+            "started": False,
+            "front_min": -1.0, "left_min": -1.0, "right_min": -1.0,
+            "chosen_side": "none",
+            "obstacle_detected": False, "camera_detected": False,
+            "active_class": self._camera_active_class,
+            "current_yaw": round(self._current_yaw, 3),
+            "target_yaw": 0.0, "yaw_error": 0.0,
+            "cmd_linear": 0.0, "cmd_angular": 0.0,
+        }, allow_nan=False)
+        self._pub_debug.publish(dbg)
+
     def _tick(self):
+        # TASK-3.1: start kapısı kapalıysa idle telemetri bas + dön
+        if not self._started:
+            self._publish_idle_telemetry()
+            return
         if (time.time() - self._start_time) < self._start_delay:
             return
 
@@ -271,10 +355,11 @@ class ObstacleAvoiderNode(Node):
         ss.data = str(self._state.phase.value)
         self._pub_state_short.publish(ss)
 
-        # Zengin debug — TASK-1 alanları
+        # Zengin debug — TASK-1 alanları (+ TASK-3.1: started)
         dbg = String()
         dbg.data = json.dumps({
             "state": str(self._state.phase.value),
+            "started": True,
             "front_min": _safe(f_min),
             "left_min": _safe(l_min),
             "right_min": _safe(r_min),

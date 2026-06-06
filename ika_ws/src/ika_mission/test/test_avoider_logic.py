@@ -110,6 +110,19 @@ def test_side_minima_all_invalid_returns_inf():
     assert f == float('inf') and l == float('inf') and r == float('inf')
 
 
+# TASK-3.1: pure-Python decide() auto_start gating'den etkilenmemeli
+def test_decide_still_drives_when_clear_after_task31():
+    """auto_start node-level; decide() çekirdeği değişmemiş olmalı."""
+    cfg = AvoiderConfig()
+    state = AvoiderState(phase=AvoiderPhase.DRIVING, goal_heading_rad=0.0)
+    cmd = decide(state, [5.0] * 360, math.radians(360),
+                 hazard_action="CLEAR", current_yaw=0.0,
+                 odom_delta_m=0.0, cfg=cfg,
+                 camera_obstacle_distance_m=float('inf'))
+    assert math.isclose(cmd.linear_x, cfg.forward_speed_mps)
+    assert cmd.next_state.phase == AvoiderPhase.DRIVING
+
+
 def test_side_minima_wraps_pi():
     # angle_min = 0, 360 ışın, 1°/ışın → ön sektör hem 0° (sol) hem ~359° (sağ)
     rs = [5.0] * 360

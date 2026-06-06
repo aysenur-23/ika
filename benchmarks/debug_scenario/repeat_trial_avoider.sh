@@ -7,12 +7,13 @@
 #   WORLD=test_world OBSTACLES="3,0;5.5,0.4;8,-0.4;10.5,0;13.5,0.3;16,0" \
 #     ./repeat_trial_avoider.sh 5 parkur_test.csv
 #
-# Çıktı CSV (TASK-2 sonrası): eski alanlar + telemetri.
+# Çıktı CSV (TASK-3.1 sonrası): TASK-2 alanları + trial_start_x/y.
 #   trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,
 #   avoider_phase,duration,reason,
 #   finish_reached,collision,min_obstacle_distance,max_y_deviation,
 #   final_y_error,state_transition_count,stuck_time,
-#   cmd_vel_oscillation_score,trial_duration,pass_strict
+#   cmd_vel_oscillation_score,trial_duration,pass_strict,
+#   trial_start_x,trial_start_y
 
 set -u
 
@@ -47,8 +48,8 @@ err()  { echo -e "${R}[!!]${NC} $1"; }
 STOP_SH="$PROJECT_ROOT/scripts/stop_sim.sh"
 [[ -x "$STOP_SH" ]] || STOP_SH="$HOME/ika/scripts/stop_sim.sh"
 
-# CSV header (TASK-2)
-echo "trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,avoider_phase,duration,reason,finish_reached,collision,min_obstacle_distance,max_y_deviation,final_y_error,state_transition_count,stuck_time,cmd_vel_oscillation_score,trial_duration,pass_strict" > "$OUT"
+# CSV header (TASK-3.1 — 21 kolon)
+echo "trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,avoider_phase,duration,reason,finish_reached,collision,min_obstacle_distance,max_y_deviation,final_y_error,state_transition_count,stuck_time,cmd_vel_oscillation_score,trial_duration,pass_strict,trial_start_x,trial_start_y" > "$OUT"
 ok "Çıktı: $OUT"
 ok "WORLD=$WORLD  OBSTACLES=$OBSTACLES  TIMEOUT=${TIMEOUT}s"
 
@@ -62,9 +63,12 @@ for i in $(seq 1 "$N_TRIALS"); do
 
   SIM_LOG="/tmp/ika_avoider_trial_${i}.log"
   : > "$SIM_LOG"
+  # TASK-3.1: auto_start=false ile başlat — robot trial monitor /avoider/start
+  # çağırana kadar hareket etmez. start_xy gerçek başlangıç olur.
   setsid bash -c "exec ros2 launch ika_bringup sim_full.launch.py \
         headless:=true rviz:=false world:=$WORLD \
         autonomous_mode:=avoider \
+        auto_start:=false \
         > '$SIM_LOG' 2>&1" < /dev/null &
   SIM_PID=$!
   echo "$SIM_PID" > /tmp/ika_sim.pid
@@ -76,8 +80,8 @@ for i in $(seq 1 "$N_TRIALS"); do
   if ! kill -0 "$SIM_PID" 2>/dev/null; then
     err "Sim öldü. Son log:"
     tail -n 30 "$SIM_LOG"
-    # TASK-2: FAIL_LAUNCH satırı da yeni kolonları içermeli (boş + 0).
-    echo "$i,FAIL_LAUNCH,,,,,UNKNOWN,0,launch_died,0,0,,,,0,0,0,0,0" >> "$OUT"
+    # TASK-3.1: FAIL_LAUNCH satırı 21 kolon (trial_start_x/y boş).
+    echo "$i,FAIL_LAUNCH,,,,,UNKNOWN,0,launch_died,0,0,,,,0,0,0,0,0,," >> "$OUT"
     FAIL_CNT=$((FAIL_CNT + 1))
     continue
   fi
@@ -112,14 +116,15 @@ try:
     row = next(csv.reader(io.StringIO(line)))
 except Exception:
     print(0); sys.exit(0)
-print(1 if len(row) == 19 else 0)
+print(1 if len(row) == 21 else 0)
 PY
 )
 
   if [[ "$TRIAL_VALID" != "1" ]]; then
-    err "Trial $i: çıktı 19 kolon değil (rc=$TRIAL_RC). Son 20 satır log:"
+    err "Trial $i: çıktı 21 kolon değil (rc=$TRIAL_RC). Son 20 satır log:"
     tail -n 20 "$TRIAL_TMP" 2>/dev/null || true
-    TRIAL_OUT="$i,FAIL_TRIAL,,,,,UNKNOWN,0,invalid_output,0,0,,,,0,0,0,0,0"
+    # TASK-3.1: 21 kolon fallback (trial_start_x/y boş)
+    TRIAL_OUT="$i,FAIL_TRIAL,,,,,UNKNOWN,0,invalid_output,0,0,,,,0,0,0,0,0,,"
   fi
 
   echo "$TRIAL_OUT" >> "$OUT"

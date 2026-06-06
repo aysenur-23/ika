@@ -26,6 +26,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
+from std_srvs.srv import Trigger
 
 
 # debug_world.sdf'teki sabit konfig (CLI ile override)
@@ -79,6 +80,10 @@ class AvoiderTrialMonitor(Node):
         self._SOURCE_PRIORITY = {"none": 0, "legacy": 1, "short": 2, "debug": 3}
         self.stuck_time = 0.0           # max kesintisiz hareketsizlik süresi
         self._stuck_run_start = None    # şu anki hareketsiz aralığın başlangıcı
+        # TASK-3.1: trial başlangıç pozu (servis çağrısı anındaki odom)
+        self.trial_start_x: float = float('nan')
+        self.trial_start_y: float = float('nan')
+        self._start_srv_called: bool = False
         # cmd_vel_oscillation_score: SADECE cmd_angular işaret değişim oranı.
         # (cmd_linear dahil değil.) Pencere içindeki sign-flip / (N-1).
         self._ang_z_history: list = []
@@ -104,9 +109,16 @@ class AvoiderTrialMonitor(Node):
         self.odom_xy = (p.x, p.y)
         if self.start_xy is None:
             self.start_xy = (p.x, p.y)
-        # max y sapması (start_y referansına göre)
-        if self.start_xy is not None:
-            dy = abs(p.y - self.start_xy[1])
+        # TASK-3.1: max_y_deviation, trial_start_y (servis ANI) referanslı.
+        # trial_start henüz set edilmemişse start_xy fallback.
+        if math.isfinite(self.trial_start_y):
+            ref_y = self.trial_start_y
+        elif self.start_xy is not None:
+            ref_y = self.start_xy[1]
+        else:
+            ref_y = None
+        if ref_y is not None:
+            dy = abs(p.y - ref_y)
             if dy > self.max_y_deviation:
                 self.max_y_deviation = dy
 
@@ -190,7 +202,8 @@ class AvoiderTrialMonitor(Node):
             self._last_state_seen = phase
 
     def wait_for_avoider_ready(self, timeout: float = 30.0) -> bool:
-        """/avoider_state yayını başlayana kadar bekle."""
+        """/avoider_state yayını başlayana kadar bekle.
+        IDLE de "ready" sayılır (auto_start=false modu için)."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=0.2)
@@ -200,6 +213,49 @@ class AvoiderTrialMonitor(Node):
                     f'after {time.time() - self.t_start:.1f}s')
                 return True
         self.get_logger().error('Timeout: /avoider_state yayını gelmedi')
+        return False
+
+    def arm_avoider_and_capture_start(self, srv_timeout: float = 5.0) -> bool:
+        """TASK-3.1: /avoider/start servisini çağır + trial_start_xy kaydet.
+
+        Servis yoksa (auto_start=true ile çalışan eski node) graceful fallback:
+        mevcut odom_xy'yi trial_start olarak işaretle ve True dön.
+        """
+        # Odom + scan akıyor olmalı (ilk odom geldikten sonra)
+        wait_until = time.time() + srv_timeout
+        while self.odom_xy is None and time.time() < wait_until:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        if self.odom_xy is None:
+            self.get_logger().error("arm: /odom hâlâ gelmiyor; iptal")
+            return False
+
+        # Servis client oluştur, kısa bekleme — yoksa fallback
+        client = self.create_client(Trigger, '/avoider/start')
+        if not client.wait_for_service(timeout_sec=2.0):
+            # Servis yok — auto_start=true ile çalışan eski node.
+            self.trial_start_x, self.trial_start_y = self.odom_xy
+            self._start_srv_called = False
+            self.get_logger().warn(
+                "/avoider/start servisi yok — fallback: mevcut odom "
+                f"trial_start olarak işaretlendi ({self.trial_start_x:.3f},"
+                f" {self.trial_start_y:.3f})")
+            return True
+
+        # Servis var — start_xy'yi servis çağrısı ANINDA al
+        # (auto_start=false ise robot sabit, odom drift minimum)
+        self.trial_start_x, self.trial_start_y = self.odom_xy
+        req = Trigger.Request()
+        future = client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=srv_timeout)
+        if future.done() and future.result() is not None:
+            res = future.result()
+            self._start_srv_called = True
+            self.get_logger().info(
+                f"/avoider/start OK ({res.message}); "
+                f"trial_start=({self.trial_start_x:.3f},"
+                f"{self.trial_start_y:.3f})")
+            return True
+        self.get_logger().error("/avoider/start çağrısı başarısız")
         return False
 
     def run_trial(self, timeout_s: float) -> dict:
@@ -262,7 +318,15 @@ class AvoiderTrialMonitor(Node):
     def _mkresult(self, status: str, reason: str) -> dict:
         rx, ry = self.odom_xy if self.odom_xy else (float('nan'), float('nan'))
         duration = time.time() - self.t_start
-        sy = self.start_xy[1] if self.start_xy else 0.0
+        # TASK-3.1: y-error referansı önceliği:
+        # 1) trial_start (servis çağrısı anındaki gerçek başlangıç)
+        # 2) eski start_xy (ilk odom callback'inde set edilen)
+        if math.isfinite(self.trial_start_y):
+            sy = self.trial_start_y
+        elif self.start_xy:
+            sy = self.start_xy[1]
+        else:
+            sy = 0.0
         final_y_err = (ry - sy) if math.isfinite(ry) else float('nan')
         min_obs = self.min_obs_dist if math.isfinite(self.min_obs_dist) else -1.0
         finish_reached = bool(math.isfinite(rx) and rx >= self.pass_x)
@@ -299,6 +363,9 @@ class AvoiderTrialMonitor(Node):
             'trial_duration': round(duration, 3),
             'pass_strict': pass_strict,
             'have_debug_topic': self._have_debug_topic,
+            # TASK-3.1
+            'trial_start_x': self.trial_start_x,
+            'trial_start_y': self.trial_start_y,
         }
 
 
@@ -353,8 +420,11 @@ def main():
             'stuck_time': 0.0, 'cmd_vel_oscillation_score': 0.0,
             'trial_duration': 0.0, 'pass_strict': False,
             'have_debug_topic': False,
+            'trial_start_x': float('nan'), 'trial_start_y': float('nan'),
         }
     else:
+        # TASK-3.1: monitor hazır → /avoider/start çağır + trial_start kaydet
+        node.arm_avoider_and_capture_start()
         result = node.run_trial(args.timeout)
 
     node.destroy_node()
@@ -389,6 +459,9 @@ def main():
         _f(result['cmd_vel_oscillation_score']),
         _f(result['trial_duration'], '.2f'),
         int(bool(result['pass_strict'])),
+        # TASK-3.1
+        _f(result['trial_start_x']),
+        _f(result['trial_start_y']),
     ])
     sys.stdout.write(buf.getvalue())
     sys.stdout.flush()

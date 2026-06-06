@@ -14,15 +14,20 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
+    # TASK-3.1: trial harness için kapı. Varsayılan true → mevcut davranış
+    # bozulmaz. Trial modunda 'auto_start:=false' geçilir.
+    auto_start = LaunchConfiguration('auto_start')
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument('auto_start', default_value='true'),
 
         Node(
             package='ika_mission', executable='obstacle_avoider',
             name='obstacle_avoider', output='screen',
             parameters=[{
                 'use_sim_time': use_sim_time,
+                'auto_start': auto_start,
                 'forward_speed_mps': 0.25,       # max guvenli hiz (encoder eklenince artirilabilir)
                 'turn_speed_rps': 0.6,
                 # KULLANICI ISTEGI (2026-06-05): "Engele biraz daha yaklastiktan

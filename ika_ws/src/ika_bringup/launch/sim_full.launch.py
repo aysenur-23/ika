@@ -58,6 +58,11 @@ def generate_launch_description():
             'autonomous_mode', default_value='nav2',
             description="Suris modu: 'nav2' (default, goal-based + planlama) | "
                         "'avoider' (reaktif) | 'off' (sadece perception)."),
+        # TASK-3.1: trial harness için kapı. Varsayılan true.
+        DeclareLaunchArgument(
+            'auto_start', default_value='true',
+            description="avoider auto-start. False ise /avoider/start servisi "
+                        "çağrılana kadar robot hareket etmez (trial harness için)."),
         DeclareLaunchArgument('enable_octomap', default_value='false',
                               description="3D octomap server (tezdeki 3-eksenli "
                                           "haritalama). Default false — RViz'de "
@@ -102,7 +107,11 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([mission_pkg, 'launch', 'autonomous_drive.launch.py'])),
-            launch_arguments={'use_sim_time': 'true'}.items(),
+            launch_arguments={
+                'use_sim_time': 'true',
+                # TASK-3.1: arg passthrough
+                'auto_start': LaunchConfiguration('auto_start'),
+            }.items(),
             condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
         ),
 

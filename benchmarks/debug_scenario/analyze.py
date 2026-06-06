@@ -67,6 +67,9 @@ def summarize(rows):
     stuck = num(rows, 'stuck_time')
     osc = num(rows, 'cmd_vel_oscillation_score')
     trial_dur = num(rows, 'trial_duration')
+    # TASK-3.1: gerçek trial başlangıç pozu
+    tsx = num(rows, 'trial_start_x')
+    tsy = num(rows, 'trial_start_y')
 
     def stats(vals):
         if not vals:
@@ -98,6 +101,10 @@ def summarize(rows):
         'stuck_time': stats(stuck),
         'cmd_vel_oscillation_score': stats(osc),
         'trial_duration': stats(trial_dur),
+        # TASK-3.1
+        'trial_start_x': stats(tsx),
+        'trial_start_y': stats(tsy),
+        'trial_start_available': bool(tsx) or bool(tsy),
     }
 
 
@@ -134,6 +141,15 @@ def print_text(summary, csv_path):
         print(f"stuck_time (s)    : {fmt_stats(summary['stuck_time'])}")
         print(f"osc_score [0..1]  : {fmt_stats(summary['cmd_vel_oscillation_score'])}")
         print(f"trial_duration (s): {fmt_stats(summary['trial_duration'])}")
+    if summary['trial_start_available']:
+        print("")
+        print(f"trial_start_x (m) : {fmt_stats(summary['trial_start_x'])}")
+        print(f"trial_start_y (m) : {fmt_stats(summary['trial_start_y'])}")
+        s = summary['trial_start_x']
+        if s and abs(s['mean']) > 0.5:
+            print(f"  ⚠️  WARNING: trial_start_x ortalaması {s['mean']:.2f}m "
+                  f"(> 0.5m). Robot trial başlamadan hareket etmiş olabilir; "
+                  f"auto_start gating'i kontrol edin.")
 
 
 def print_markdown(summary, csv_path):
@@ -164,6 +180,11 @@ def print_markdown(summary, csv_path):
             ('Stuck süresi (s)', 'stuck_time'),
             ('cmd_vel oscillation [0..1]', 'cmd_vel_oscillation_score'),
             ('Trial süresi (s)', 'trial_duration'),
+        ]
+    if summary['trial_start_available']:
+        metrics += [
+            ('Trial start x (m)', 'trial_start_x'),
+            ('Trial start y (m)', 'trial_start_y'),
         ]
     for label, key in metrics:
         s = summary[key]
