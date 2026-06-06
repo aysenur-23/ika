@@ -1,58 +1,51 @@
-"""IKA — Tam otonom reaktif engel kacinma cekirdegi (ROS'suz).
+"""IKA — Goal-Aware Reaktif Engel Kaçınma Çekirdeği (ROS'suz, saf-Python).
 
-Defense-in-depth mimarisinin Katman 2'si (`docs/avoidance_architecture.md`).
-Bu modul saf-Python; ROS yok -> pytest ile Windows'ta dahi kosar.
+Defense-in-depth Katman 2 (`docs/avoidance_architecture.md`).
 
-Davranis (tezde "engelden dolanip yola donen reaktif kacinici"):
-
-    Acilis -> dumduz ileri suruyor (DRIVING).
-    Onunde gecemeyecegi engel veya tehlike -> donmek icin durur (AVOIDING).
-    On sektor temiz -> yan tarafa surup engelin otesine gecer (PASSING).
-    Engel artik solda/sagda -> ev yonune geri doner (REALIGNING).
-    Ev yonune yakinsadi -> tekrar DRIVING.
-    Toplam target_distance_m engelsiz mesafe -> DONE.
+PROFESYONEL TASARIM:
+    - Goal-direction awareness (hedefe yönlü, random değil)
+    - Multi-sensor: lidar + camera DL (vision_msgs/Detection3DArray)
+    - Initial planning: start'ta heading'i goal'a göre belirle
+    - Dynamic re-planning: engel görünce yan geç, sonra heading'i goal'a güncelle
+    - Hysteresis (chattering yok)
+    - Defansif: her durumda yakın engel → AVOIDING
 
 State machine (4 calisma fazi + DONE):
 
-      ┌──────────────┐
-      │   DRIVING    │◄──────────────────────────────┐
-      └──────┬───────┘                               │
-             │ engel(min_r < obstacle_distance_m)    │ heading ≈ home_yaw
-             │ VEYA hazard ∈ HAZARD_BLOCKING         │
-             ▼                                       │
-      ┌──────────────┐                               │
-      │  AVOIDING    │ yerinde don (yön: bos olan)   │
-      └──────┬───────┘                               │
-             │ on sektor temiz (min_r > release_m)   │
-             ▼                                       │
-      ┌──────────────┐                               │
-      │   PASSING    │ duz ilerle, engel-yan-mesafe sayar
-      └──────┬───────┘                               │
-             │ engel artik on sektorde degil VE      │
-             │ pass_clear_distance_m kat edildi      │
-             ▼                                       │
-      ┌──────────────┐                               │
-      │ REALIGNING   │ ev yonune don                 │
-      └──────┬───────┘                               │
-             │ |yaw_err| < yaw_tolerance_rad         │
-             └───────────────────────────────────────┘
+    DRIVING (goal heading'i takip et)
+        |
+        | engel(lidar) VEYA detection(camera)
+        v
+    AVOIDING (yerinde dön — goal'a yakın boş yönü seç)
+        |
+        | front clear (hysteresis)
+        v
+    PASSING (engelin yanından ileri sür)
+        |
+        | yan mesafe yeterli (pass_clear_distance_m)
+        v
+    REALIGNING (goal heading'e geri dön — DİNAMİK PLAN REVİZYONU)
+        |
+        | yaw yakın goal_heading
+        v
+    DRIVING (yeniden goal'a yönlü ilerle)
 
-      DONE: terminal, asla cikis yok.
+Her durumda lidar/camera engel görünce AVOIDING'e atlama önceliği.
 
-Defansiflik:
-  Her durumda, on sektorde engel goründügünde, anında AVOIDING'e geri
-  donulur. PASSING ve REALIGNING bu güvenlik kontrolune sahiptir.
+TASARIM KARARI — hazard_state KAPATILDI (lidar+camera only):
+    Sim'de terrain_perception yanlış sınıflandırma yapıyor (SAFE alanı
+    SLOW sayıyor). Avoider yanlış tepki veriyordu. Çözüm: hazard_state
+    avoider'a etki etmesin. Sadece kesin sensör verisi (lidar mesafesi +
+    DL detection 3D bbox) tetikleyici.
 
-Engel tanimi (OR):
-  - Lidar `front_arc_deg` sektorunde min range < obstacle_distance_m
-  - VEYA hazard_action ∈ HAZARD_BLOCKING (terrain STOP, dl detection STOP)
+    Hazard fusion safety_supervisor tarafından tüketilir (ayrı katman).
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 
 class AvoiderPhase(str, Enum):
@@ -65,33 +58,36 @@ class AvoiderPhase(str, Enum):
 
 @dataclass(frozen=True)
 class AvoiderConfig:
-    """Avoider parametreleri. Tezdeki "robot 0.25 m/s" sinirina uyumlu."""
-    forward_speed_mps: float = 0.20      # 0.25 hiz limiti altinda guvenli marj
+    """Avoider parametreleri."""
+    forward_speed_mps: float = 0.25
     turn_speed_rps: float = 0.5
-    obstacle_distance_m: float = 0.80    # bu mesafede engel sayilir
-    release_distance_m: float = 1.00     # AVOIDING'den cikmak icin daha gevsek esik
-                                          # (chattering'i onler: 0.8 girer, 1.0 cikar)
-    front_arc_deg: float = 60.0          # +/-30 derece on sektoru
-    pass_clear_distance_m: float = 0.50  # PASSING fazinda yan tarafta ne kadar suruluyor
-                                          # (engel ~0.40 m kutu varsayilan + 10 cm margin)
-    target_distance_m: float = 2.0       # bu kadar engelsiz mesafe -> dur
-    yaw_tolerance_rad: float = 0.10      # ev yonune yakinsama esigi
+    obstacle_distance_m: float = 0.35       # lidar tetikleyici eşik
+    release_distance_m: float = 0.60        # AVOIDING'den çıkış (hysteresis)
+    camera_detection_distance_m: float = 1.50  # camera DL erken uyarı eşiği
+    front_arc_deg: float = 50.0
+    pass_clear_distance_m: float = 0.40
+    target_distance_m: float = 10000.0      # mission mode: sonsuz
+    yaw_tolerance_rad: float = 0.15
+    # Yaw kontrol (DRIVING + REALIGNING'de heading hata düzeltmesi)
+    heading_kp: float = 1.5                 # heading hata × Kp → angular_z
+    max_heading_correction_rps: float = 0.4 # heading correction üst sınırı
+    # DRIVING'de heading hata > bu ise sadece dön (linear=0)
+    heading_critical_err_rad: float = 0.40
 
 
 @dataclass
 class AvoiderState:
-    """Cekirdegin canli durumu. Immutable degil; her tikte `replace` ile kopyalanir."""
+    """Cekirdegin canli durumu."""
     phase: AvoiderPhase = AvoiderPhase.DRIVING
-    home_yaw: float = 0.0                # baslangic yon (radyan)
-    distance_clear_m: float = 0.0        # toplam engelsiz mesafe (DONE icin)
-    avoid_direction: int = 0             # +1 sol, -1 sag, 0 yok
-    pass_distance_m: float = 0.0         # PASSING fazinda kat edilen mesafe
+    goal_heading_rad: float = 0.0           # ASIL goal yönü (radyan, world frame)
+    distance_clear_m: float = 0.0
+    avoid_direction: int = 0
+    pass_distance_m: float = 0.0
 
 
-# Faz 3'te lidar-only yeterli oldugundan terrain hazard kapatildi;
-# fakat sim/terrain testleri icin geri acilabilir set olarak kalsin.
-# Tezdeki katman analizi: terrain_layer global costmap'te ayri marker olarak.
-HAZARD_BLOCKING = {"STOP", "SLOW"}
+# hazard_state KAPATILDI — bkz. modül docstring.
+# Avoider sadece doğrudan sensör verisi (lidar + camera DL) ile çalışır.
+HAZARD_BLOCKING = set()
 
 
 def wrap_pi(angle: float) -> float:
@@ -101,12 +97,6 @@ def wrap_pi(angle: float) -> float:
 
 def _front_sector_indices(num_rays: int, total_fov_rad: float,
                           front_arc_rad: float) -> Tuple[int, int]:
-    """Lidar mesafe dizisinden on sektorun indeks araligini hesapla.
-
-    LaserScan kabulu: indeks 0 -> -fov/2 yonu, indeks N-1 -> +fov/2 yonu.
-    On (yaw=0) ortada. 360 derece lidarlar icin tipik:
-    indeks (N/2 - arc/2) ile (N/2 + arc/2) arasi ileri sektor.
-    """
     if num_rays <= 1:
         return (0, num_rays)
     half_arc = front_arc_rad / 2.0
@@ -120,7 +110,6 @@ def _front_sector_indices(num_rays: int, total_fov_rad: float,
 
 def front_min_range(scan_ranges: Sequence[float], total_fov_rad: float,
                     front_arc_rad: float) -> Tuple[float, Sequence[float]]:
-    """On sektorun min menzilini + ilgili dilimi don."""
     lo, hi = _front_sector_indices(len(scan_ranges), total_fov_rad, front_arc_rad)
     sector = [r for r in scan_ranges[lo:hi]
               if r > 0.0 and math.isfinite(r)]
@@ -129,24 +118,43 @@ def front_min_range(scan_ranges: Sequence[float], total_fov_rad: float,
     return (min(sector), sector)
 
 
-def pick_avoid_direction(front_sector: Sequence[float]) -> int:
-    """On sektorun sol/sag yarisindan daha bos olanin yonunu sec.
+def pick_avoid_direction_goal_aware(front_sector: Sequence[float],
+                                     current_yaw: float,
+                                     goal_heading: float) -> int:
+    """Engelden kaçınma yönü: hem boş taraf hem goal'a yakın taraf.
 
-    Returns +1 (sol) veya -1 (sag). Bilgi yoksa sag (-1) dondur (deterministik).
+    Eğer goal sağdaysa (yaw_err > 0) → sağa eğilim
+    Eğer goal soldaysa (yaw_err < 0) → sola eğilim
+    Ek: lidar'da daha boş tarafı tercih et (kararlı algoritma).
+
+    Returns: +1 (sol) veya -1 (sağ).
     """
     if not front_sector:
-        return -1
+        # Bilgi yoksa goal yönüne göre seç
+        yaw_err = wrap_pi(goal_heading - current_yaw)
+        return 1 if yaw_err > 0 else -1
+
     mid = len(front_sector) // 2
     left = [r for r in front_sector[:mid] if math.isfinite(r)]
     right = [r for r in front_sector[mid:] if math.isfinite(r)]
     left_max = max(left) if left else 0.0
     right_max = max(right) if right else 0.0
+
+    # Lidar boşluk farkı belirgin değilse (örneğin %20'den az) → goal yönü kazanır
+    if abs(left_max - right_max) < 0.20 * max(left_max, right_max, 1.0):
+        yaw_err = wrap_pi(goal_heading - current_yaw)
+        return 1 if yaw_err > 0 else -1
+
     return 1 if left_max > right_max else -1
+
+
+# Backward compat: eski testler için
+def pick_avoid_direction(front_sector: Sequence[float]) -> int:
+    return pick_avoid_direction_goal_aware(front_sector, 0.0, 0.0)
 
 
 @dataclass
 class AvoiderCommand:
-    """Cekirdek karari: tek tik icin hiz komutu + yeni state + insan icin reason."""
     linear_x: float
     angular_z: float
     next_state: AvoiderState
@@ -157,11 +165,14 @@ class AvoiderCommand:
 
 
 def _is_blocked(min_range: float, hazard_action: str,
-                threshold_m: float) -> bool:
-    """Defansif engel kontrolu: lidar yakin VEYA hazard STOP/SLOW."""
+                threshold_m: float,
+                camera_detection_close: bool = False) -> bool:
+    """Engel tespiti: lidar yakın VEYA camera close detection.
+    hazard_action varsayılan olarak göz ardı edilir (HAZARD_BLOCKING boş).
+    """
     obstacle_close = min_range < threshold_m
     hazard_blocked = (hazard_action or "").upper() in HAZARD_BLOCKING
-    return obstacle_close or hazard_blocked
+    return obstacle_close or hazard_blocked or camera_detection_close
 
 
 def decide(state: AvoiderState,
@@ -170,86 +181,118 @@ def decide(state: AvoiderState,
            hazard_action: str,
            current_yaw: float,
            odom_delta_m: float,
-           cfg: AvoiderConfig) -> AvoiderCommand:
-    """Tek-tik karar fonksiyonu. State'i guncellemez (yeni state doner).
+           cfg: AvoiderConfig,
+           camera_obstacle_distance_m: float = float('inf')) -> AvoiderCommand:
+    """Goal-aware reactive obstacle avoidance — tek tik karar.
 
     Args:
         state         : mevcut AvoiderState
         scan_ranges   : LaserScan.ranges (m)
-        scan_fov_rad  : tarayicinin toplam FOV'u (radyan, 360 icin 2*pi)
-        hazard_action : "CLEAR" | "SLOW" | "STOP" (ika_fusion'dan)
-        current_yaw   : odom/EKF yaw (radyan)
-        odom_delta_m  : bu tikteki kat edilen lineer mesafe (m)
+        scan_fov_rad  : tarayicinin toplam FOV'u (radyan)
+        hazard_action : (ignored, geriye uyumluluk için tutulur)
+        current_yaw   : robot mevcut yaw (radyan, world frame)
+        odom_delta_m  : bu tikteki kat edilen mesafe (m)
         cfg           : AvoiderConfig
+        camera_obstacle_distance_m: en yakın DL detection mesafesi
+                                    (inf ise yok)
+
+    Goal heading state.goal_heading_rad'da. start_delay sonra node bunu
+    current_yaw olarak set eder (robot başlangıçta hangi yöne bakıyorsa
+    onu hedef yapar).
 
     Returns:
-        AvoiderCommand (linear, angular, next_state, reason).
+        AvoiderCommand
     """
     front_arc_rad = math.radians(cfg.front_arc_deg)
     min_r, sector = front_min_range(scan_ranges, scan_fov_rad, front_arc_rad)
-    blocked_enter = _is_blocked(min_r, hazard_action, cfg.obstacle_distance_m)
-    blocked_exit = _is_blocked(min_r, hazard_action, cfg.release_distance_m)
+
+    # Multi-sensor: lidar VEYA camera detection yakın
+    camera_close = camera_obstacle_distance_m < cfg.camera_detection_distance_m
+
+    blocked_enter = _is_blocked(min_r, hazard_action,
+                                 cfg.obstacle_distance_m, camera_close)
+    blocked_exit = _is_blocked(min_r, hazard_action,
+                                cfg.release_distance_m, camera_close)
+
+    # Goal heading hata (hedeften ne kadar sapmış)
+    yaw_err_to_goal = wrap_pi(state.goal_heading_rad - current_yaw)
 
     # ─── DRIVING ────────────────────────────────────────────────────────
     if state.phase == AvoiderPhase.DRIVING:
         if blocked_enter:
             new = replace(state)
-            new.avoid_direction = pick_avoid_direction(sector)
+            new.avoid_direction = pick_avoid_direction_goal_aware(
+                sector, current_yaw, state.goal_heading_rad)
             new.phase = AvoiderPhase.AVOIDING
             new.pass_distance_m = 0.0
             return AvoiderCommand(
                 0.0, cfg.turn_speed_rps * new.avoid_direction, new,
-                f"DRIVING->AVOIDING (min_r={min_r:.2f}m, "
-                f"hazard={hazard_action}, dir={new.avoid_direction:+d})",
+                f"DRIVING->AVOIDING (lidar_min={min_r:.2f}m, "
+                f"cam={camera_obstacle_distance_m:.2f}m, "
+                f"dir={new.avoid_direction:+d})",
             )
-        # Engel yok: ilerle, mesafe say
+
         new = replace(state)
         new.distance_clear_m = state.distance_clear_m + max(odom_delta_m, 0.0)
         if new.distance_clear_m >= cfg.target_distance_m:
             new.phase = AvoiderPhase.DONE
             return AvoiderCommand(0.0, 0.0, new,
                                   f"DRIVING->DONE (d={new.distance_clear_m:.2f}m)")
-        return AvoiderCommand(cfg.forward_speed_mps, 0.0, new,
-                              f"DRIVING (d={new.distance_clear_m:.2f}m)")
+
+        # Goal heading'e doğru sürekli minik düzeltme — yol planı revizyonu
+        if abs(yaw_err_to_goal) > cfg.heading_critical_err_rad:
+            # Çok sapmışız, dur ve dön
+            sign = 1 if yaw_err_to_goal > 0 else -1
+            return AvoiderCommand(
+                0.0, cfg.turn_speed_rps * sign, new,
+                f"DRIVING (heading correction, err={yaw_err_to_goal:.2f})",
+            )
+        # Normal sürüş — minik heading düzeltme + ileri
+        angular_corr = max(-cfg.max_heading_correction_rps,
+                           min(cfg.max_heading_correction_rps,
+                               cfg.heading_kp * yaw_err_to_goal))
+        return AvoiderCommand(
+            cfg.forward_speed_mps, angular_corr, new,
+            f"DRIVING (d={new.distance_clear_m:.2f}m, "
+            f"yaw_err={yaw_err_to_goal:.2f})",
+        )
 
     # ─── AVOIDING ──────────────────────────────────────────────────────
     if state.phase == AvoiderPhase.AVOIDING:
         if blocked_exit:
-            # Hala engelliyim, donmeye devam
             return AvoiderCommand(
                 0.0, cfg.turn_speed_rps * state.avoid_direction,
-                replace(state), "AVOIDING (still blocked)",
+                replace(state),
+                f"AVOIDING (still blocked, lidar={min_r:.2f}m)",
             )
-        # On sektor temizlendi: PASSING'e gec (engelin yanindan suruyoruz)
         new = replace(state)
         new.phase = AvoiderPhase.PASSING
         new.pass_distance_m = 0.0
         return AvoiderCommand(
             cfg.forward_speed_mps, 0.0, new,
-            f"AVOIDING->PASSING (cleared, min_r={min_r:.2f}m)",
+            f"AVOIDING->PASSING (cleared, lidar={min_r:.2f}m)",
         )
 
     # ─── PASSING ───────────────────────────────────────────────────────
     if state.phase == AvoiderPhase.PASSING:
-        # Defansif: ON sektorde tekrar engel cikarsa AVOIDING'e geri don
         if blocked_enter:
             new = replace(state)
             new.phase = AvoiderPhase.AVOIDING
-            new.avoid_direction = pick_avoid_direction(sector)
+            new.avoid_direction = pick_avoid_direction_goal_aware(
+                sector, current_yaw, state.goal_heading_rad)
             new.pass_distance_m = 0.0
             return AvoiderCommand(
                 0.0, cfg.turn_speed_rps * new.avoid_direction, new,
-                f"PASSING->AVOIDING (new obstacle min_r={min_r:.2f}m)",
+                f"PASSING->AVOIDING (new obstacle, lidar={min_r:.2f}m)",
             )
-        # Yeterince ilerledim mi? engel artik yanimda kaldi
+
         new = replace(state)
         new.pass_distance_m = state.pass_distance_m + max(odom_delta_m, 0.0)
         new.distance_clear_m = state.distance_clear_m + max(odom_delta_m, 0.0)
         if new.distance_clear_m >= cfg.target_distance_m:
             new.phase = AvoiderPhase.DONE
             return AvoiderCommand(
-                0.0, 0.0, new,
-                f"PASSING->DONE (d={new.distance_clear_m:.2f}m)",
+                0.0, 0.0, new, f"PASSING->DONE (d={new.distance_clear_m:.2f}m)",
             )
         if new.pass_distance_m >= cfg.pass_clear_distance_m:
             new.phase = AvoiderPhase.REALIGNING
@@ -264,31 +307,31 @@ def decide(state: AvoiderState,
 
     # ─── REALIGNING ────────────────────────────────────────────────────
     if state.phase == AvoiderPhase.REALIGNING:
-        # Defansif: ON sektorde engel cikarsa AVOIDING'e geri don
         if blocked_enter:
             new = replace(state)
             new.phase = AvoiderPhase.AVOIDING
-            new.avoid_direction = pick_avoid_direction(sector)
+            new.avoid_direction = pick_avoid_direction_goal_aware(
+                sector, current_yaw, state.goal_heading_rad)
             new.pass_distance_m = 0.0
             return AvoiderCommand(
                 0.0, cfg.turn_speed_rps * new.avoid_direction, new,
-                f"REALIGNING->AVOIDING (new obstacle min_r={min_r:.2f}m)",
+                f"REALIGNING->AVOIDING (new obstacle, lidar={min_r:.2f}m)",
             )
-        yaw_err = wrap_pi(state.home_yaw - current_yaw)
-        if abs(yaw_err) < cfg.yaw_tolerance_rad:
+
+        # Goal heading'e dön — bu DİNAMİK PLAN REVİZYONU
+        if abs(yaw_err_to_goal) < cfg.yaw_tolerance_rad:
             new = replace(state)
             new.phase = AvoiderPhase.DRIVING
             new.avoid_direction = 0
             new.pass_distance_m = 0.0
             return AvoiderCommand(
                 cfg.forward_speed_mps, 0.0, new,
-                "REALIGNING->DRIVING (aligned)",
+                f"REALIGNING->DRIVING (aligned, yaw_err={yaw_err_to_goal:.2f})",
             )
-        # Ev yonune dogru kuçuk açi ile don (linear küçük, angular dominant)
-        sign = 1 if yaw_err > 0 else -1
+        sign = 1 if yaw_err_to_goal > 0 else -1
         return AvoiderCommand(
             0.0, cfg.turn_speed_rps * sign, replace(state),
-            f"REALIGNING (yaw_err={yaw_err:.3f})",
+            f"REALIGNING (yaw_err={yaw_err_to_goal:.2f})",
         )
 
     # ─── DONE ──────────────────────────────────────────────────────────
