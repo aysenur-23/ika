@@ -1,0 +1,6 @@
+trial_id,status,final_x,final_y,dist_to_goal,min_obs_dist,duration,nav2_result
+1,PASS,2.748,0.676,0.307,0.286,15.48,SUCCEEDED
+2,FAIL_TIMEOUT,1.089,0.342,1.918,0.288,60.00,timeout
+3,FAIL_TIMEOUT,1.033,0.355,1.973,0.321,60.00,timeout
+4,FAIL_TIMEOUT,1.019,0.280,1.993,0.291,60.00,timeout
+5,FAIL_TIMEOUT,1.190,0.291,1.822,0.208,60.00,timeout

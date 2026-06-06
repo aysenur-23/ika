@@ -1,5 +1,64 @@
 # İKA — İlerleme Kaydı
 
+> **2026-06-05 (gece) — FAZ 3: KÖK NEDEN + İLK PASS!** 🎉
+>
+> Detay: `benchmarks/debug_scenario/ablation/faz3_results.md`
+>
+> **2 kök neden bulundu (capture_plan ile):**
+>
+> 1. **`global_costmap.use_sim_time: false`** — sim'de /scan sim_time
+>    stamp'li, costmap wall_clock yorumlasa tum scan'ler "too old"
+>    filtreye takiliyor → global obstacle_layer engeli HIC GORMUYOR
+>    → planner duz cizgi path uretiyor.
+> 2. **`global_costmap.transform_tolerance: 0.3`** — WSL'de TF buffer
+>    ileri zamanli, /scan bridge gecikmesi ile geç geliyor. Default
+>    yetersiz, scan'ler dropping message ile reddediliyor.
+>
+> **2 fix uygulandi** (sim icin true, Pi icin baska config gerek):
+> - use_sim_time false → **true** (global+local costmap)
+> - transform_tolerance 0.3 → **2.0** (global+local costmap)
+>
+> **Faz 3.0 ondulasyon kontrolu (capture_plan):**
+> | Aşama | arc/straight | y_range | min_obs_clear |
+> |---|---|---|---|
+> | Fix öncesi | **1.0** (düz!) | [0, 0] | **0.0** (içinden!) |
+> | Fix sonrası | **1.21** ✓ | [0, **0.836**] ✓ | **0.548** ✓ |
+>
+> Planner artık doğru. AMA trial PASS getirmedi (5/5 ABORTED, robot
+> y≈0). Demek BT/DWB başka bir takıntıya sahip — merkez-çizgi.
+>
+> **Faz 3.3 BREAKTHROUGH: Goal offset (3, 0.5):**
+>
+> | Goal | PASS | Mod |
+> |---|---|---|
+> | (3, 0.0) merkez | 0/5 | hep merkez-çizgide takılı |
+> | **(3, 0.5)** offset | **1/5 ✅** | Trial 1: robot y=0.68'e saptı, 15s'de SUCCEEDED |
+>
+> **İLK PASS!** Robot engeli soldan dolaştı:
+>   final (2.748, 0.676), dist 0.31, min_obs 0.286, 15.5 s, SUCCEEDED.
+>
+> 4/5 trial'da robot y≈0.3 saptı ama yeterli değil — merkez-çizgi
+> çekimi yüzünden tekrar centerline'a dönüp engel önünde duruyor.
+>
+> **Faz 1 taksonomisi REVIZYON:**
+> "Kategori A = algı geç" → DOĞRUSU: **"Merkez-çizgi takıntısı +
+> costmap sim_time kayması"**. Algı zamanda; planlama bozuk; goal
+> offset olunca planner ve DWB doğru çalışıyor.
+>
+> **Tezdeki katki:**
+> - 5 katmanli savunmanin 3 katmaninin etkisiz oldugu kanitlandi (Faz 2)
+> - Asil kok neden global_costmap'in /scan goremiyor olmasi (Faz 3.0)
+> - Goal merkez-cizgide olunca DWB centerline takintisi (Faz 3.3)
+> - Tum bunlarin **olculmus** parametre hassasiyet analizi
+>
+> **Sıradaki — kalan Faz 3:**
+> - 3.1 — DWB sample density (vtheta_samples 40→80+) ile centerline
+>   takintisini ne ölçüde kırabiliriz?
+> - 3.2 — SmacPlannerHybrid (kinematik bilinçli planner)
+> - 3.4 — Goal offset varyans (y={0, 0.15, 0.30, 0.50, 0.75})
+>   → hassasiyet eğrisi
+> - Faz 4 — Pi doğrulama (WSL'de stabil PASS olunca)
+
 > **2026-06-05 (akşam) — FAZ 2 TAMAM: ABLATION BÜYÜK BULGU**
 >
 > 4 ablasyon × N=5 = 20 trial koşuldu. **0/20 PASS.** Ama her ablasyonun
