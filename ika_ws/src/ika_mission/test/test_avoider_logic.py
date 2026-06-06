@@ -28,8 +28,98 @@ from typing import List
 from ika_mission.avoider_logic import (
     AvoiderConfig, AvoiderState, AvoiderPhase,
     decide, pick_avoid_direction, pick_avoid_direction_goal_aware,
-    front_min_range, wrap_pi, HAZARD_BLOCKING,
+    front_min_range, side_minima, wrap_pi, HAZARD_BLOCKING,
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TASK-1: side_minima telemetri helper
+# ═══════════════════════════════════════════════════════════════════════
+
+# Standart RPLIDAR benzeri: angle_min=-pi, 1° artış, 360 ışın.
+_AMIN = -math.pi
+_AINC = math.radians(1.0)
+_FRONT = math.radians(60.0)
+
+
+def _idx_for_angle(deg: float) -> int:
+    """deg derecesine en yakın index (angle_min=-pi, 1°/ışın)."""
+    return int(round((math.radians(deg) - _AMIN) / _AINC)) % 360
+
+
+def test_side_minima_open_scan_all_finite_equal():
+    rs = [5.0] * 360
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert math.isclose(f, 5.0)
+    assert math.isclose(l, 5.0)
+    assert math.isclose(r, 5.0)
+
+
+def test_side_minima_negative_angle_is_right():
+    # -20°..-5° (negatif açı) = SAĞ
+    rs = [5.0] * 360
+    for d in range(-20, -4):
+        rs[_idx_for_angle(d)] = 0.4
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert math.isclose(r, 0.4), "negatif açı sağa karşılık gelmeli"
+    assert l > 1.0, "sol açık olmalı"
+    assert math.isclose(f, 0.4)
+
+
+def test_side_minima_positive_angle_is_left():
+    # +5°..+20° (pozitif açı) = SOL
+    rs = [5.0] * 360
+    for d in range(5, 21):
+        rs[_idx_for_angle(d)] = 0.3
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert math.isclose(l, 0.3), "pozitif açı sola karşılık gelmeli"
+    assert r > 1.0, "sağ açık olmalı"
+    assert math.isclose(f, 0.3)
+
+
+def test_side_minima_excludes_outside_front_arc():
+    # 60° ön ark → ±30°. 45° = ark DIŞI, etki etmemeli.
+    rs = [5.0] * 360
+    rs[_idx_for_angle(45)] = 0.1
+    rs[_idx_for_angle(-45)] = 0.1
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert f == 5.0 and l == 5.0 and r == 5.0
+
+
+def test_side_minima_filters_invalid_ranges():
+    rs = [5.0] * 360
+    # SAĞ tarafa (negatif açı) geçersiz + tek geçerli
+    rs[_idx_for_angle(-10)] = 0.0
+    rs[_idx_for_angle(-11)] = -1.0
+    rs[_idx_for_angle(-12)] = float('inf')
+    rs[_idx_for_angle(-13)] = float('nan')
+    rs[_idx_for_angle(-14)] = 0.5
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert math.isclose(r, 0.5)
+    assert l > 1.0
+
+
+def test_side_minima_empty_returns_inf():
+    f, l, r = side_minima([], _AMIN, _AINC, _FRONT)
+    assert f == float('inf') and l == float('inf') and r == float('inf')
+
+
+def test_side_minima_all_invalid_returns_inf():
+    rs = [float('nan')] * 360
+    f, l, r = side_minima(rs, _AMIN, _AINC, _FRONT)
+    assert f == float('inf') and l == float('inf') and r == float('inf')
+
+
+def test_side_minima_wraps_pi():
+    # angle_min = 0, 360 ışın, 1°/ışın → ön sektör hem 0° (sol) hem ~359° (sağ)
+    rs = [5.0] * 360
+    rs[_idx_for_angle(355) % 360 if False else int(round((math.radians(355) - 0.0) / _AINC))] = 0.7  # 355° → -5° wrap, SAĞ
+    rs[int(round((math.radians(10) - 0.0) / _AINC))] = 0.8  # 10° SOL
+    f, l, r = side_minima(rs, 0.0, _AINC, _FRONT)
+    assert math.isclose(r, 0.7), "wrap_pi sonrası 355° sağ olmalı"
+    assert math.isclose(l, 0.8), "10° sol olmalı"
+    assert math.isclose(f, 0.7)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════

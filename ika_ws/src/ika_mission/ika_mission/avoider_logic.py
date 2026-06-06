@@ -123,6 +123,50 @@ def front_min_range(scan_ranges: Sequence[float], total_fov_rad: float,
     return (min(sector), sector)
 
 
+def side_minima(scan_ranges: Sequence[float],
+                angle_min_rad: float,
+                angle_increment_rad: float,
+                front_arc_rad: float) -> Tuple[float, float, float]:
+    """Telemetri için: (front_min, left_min, right_min) m.
+
+    ROS REP-103: z-up, açı CCW pozitif. Her ışın için:
+        angle_i = wrap_pi(angle_min_rad + i * angle_increment_rad)
+    Ön sektör: |angle_i| <= front_arc_rad / 2
+    Sınıflandırma: angle < 0 → SAĞ, angle >= 0 → SOL.
+    Index merkezinin "ileri" olduğu varsayımı YAPILMAZ.
+
+    Geçersiz range (<=0, NaN, inf) elenir. Boş sektör → inf.
+    Saf-Python, ROS bağımsız.
+    """
+    if not scan_ranges:
+        return (float('inf'), float('inf'), float('inf'))
+    half = front_arc_rad / 2.0
+    front_vals: list = []
+    left_vals: list = []
+    right_vals: list = []
+    for i, r in enumerate(scan_ranges):
+        if r is None:
+            continue
+        try:
+            rf = float(r)
+        except (TypeError, ValueError):
+            continue
+        if rf <= 0.0 or not math.isfinite(rf):
+            continue
+        ang = wrap_pi(angle_min_rad + i * angle_increment_rad)
+        if abs(ang) > half:
+            continue
+        front_vals.append(rf)
+        if ang < 0.0:
+            right_vals.append(rf)
+        else:
+            left_vals.append(rf)
+    f = min(front_vals) if front_vals else float('inf')
+    l = min(left_vals) if left_vals else float('inf')
+    r = min(right_vals) if right_vals else float('inf')
+    return (f, l, r)
+
+
 def pick_avoid_direction_goal_aware(front_sector: Sequence[float],
                                      current_yaw: float,
                                      goal_heading: float) -> int:

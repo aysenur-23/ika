@@ -36,6 +36,7 @@ except ImportError:
 
 from ika_mission.avoider_logic import (
     AvoiderConfig, AvoiderState, AvoiderPhase, decide,
+    side_minima, wrap_pi,
 )
 
 
@@ -88,8 +89,9 @@ class ObstacleAvoiderNode(Node):
         # Gerçek odom pozisyonu — delta hesaplamak için
         self._last_position: Optional[tuple] = None
         self._current_position: Optional[tuple] = None
-        # Camera DL detection — en yakın engel mesafesi
+        # Camera DL detection — en yakın engel mesafesi + sınıfı
         self._camera_obstacle_dist: float = float('inf')
+        self._camera_active_class: str = "none"
         self._start_time = time.time()
         self._start_delay = float(self.get_parameter('start_delay_s').value)
 
@@ -114,6 +116,9 @@ class ObstacleAvoiderNode(Node):
 
         self._pub_cmd = self.create_publisher(Twist, '/cmd_vel_nav', 10)
         self._pub_state = self.create_publisher(String, '/avoider_state', 10)
+        # Telemetri: sade state + zengin debug
+        self._pub_state_short = self.create_publisher(String, '/avoider/state', 10)
+        self._pub_debug = self.create_publisher(String, '/avoider/debug', 10)
 
         rate = float(self.get_parameter('control_rate_hz').value)
         self._period = 1.0 / max(rate, 1.0)
@@ -144,8 +149,10 @@ class ObstacleAvoiderNode(Node):
         """Camera DL detection — en yakın engelin uzaklığını al."""
         if not msg.detections:
             self._camera_obstacle_dist = float('inf')
+            self._camera_active_class = "none"
             return
         min_d = float('inf')
+        active_class = "none"
         for det in msg.detections:
             # bbox center pozisyonu (camera frame veya base_link frame)
             # Detection3D.bbox.center.position.{x,y,z}
@@ -156,9 +163,15 @@ class ObstacleAvoiderNode(Node):
                 if p.x > 0 and abs(p.y) < 1.5:
                     if d < min_d:
                         min_d = d
+                        try:
+                            active_class = str(det.results[0].hypothesis.class_id) \
+                                if det.results else "none"
+                        except (AttributeError, IndexError):
+                            active_class = "none"
             except AttributeError:
                 continue
         self._camera_obstacle_dist = min_d
+        self._camera_active_class = active_class
 
     def _tick(self):
         if (time.time() - self._start_time) < self._start_delay:
@@ -210,24 +223,72 @@ class ObstacleAvoiderNode(Node):
         m.angular.z = float(cmd.angular_z)
         self._pub_cmd.publish(m)
 
+        # ── Telemetri hesapları ─────────────────────────────────────────
+        front_arc_rad = math.radians(self._cfg.front_arc_deg)
+        f_min, l_min, r_min = side_minima(
+            scan.ranges,
+            scan.angle_min,
+            scan.angle_increment,
+            front_arc_rad,
+        )
+        yaw_err = wrap_pi(self._state.goal_heading_rad - self._current_yaw)
+        cam_d = self._camera_obstacle_dist
+        cam_detected = math.isfinite(cam_d) and cam_d < self._cfg.camera_detection_distance_m
+        obstacle_detected = (math.isfinite(f_min) and
+                             f_min < self._cfg.obstacle_distance_m) or cam_detected
+        # chosen_side string: "left" / "right" / "none"
+        _ad = int(self._state.avoid_direction)
+        chosen_side = "left" if _ad > 0 else ("right" if _ad < 0 else "none")
+
+        def _safe(x, default=-1.0):
+            try:
+                xf = float(x)
+            except (TypeError, ValueError):
+                return default
+            return round(xf, 3) if math.isfinite(xf) else default
+
+        # Geriye uyumlu zengin state (eski tüketiciler için aynen kalsın)
+        lidar_min = min((r for r in scan.ranges
+                         if isinstance(r, (int, float)) and r > 0 and math.isfinite(r)),
+                        default=float('inf'))
         s = String()
         s.data = json.dumps({
             "phase": str(self._state.phase.value),
-            "distance_clear_m": round(self._state.distance_clear_m, 3),
-            "goal_heading": round(self._state.goal_heading_rad, 3),
-            "current_yaw": round(self._current_yaw, 3),
-            "yaw_err": round(self._state.goal_heading_rad - self._current_yaw, 3),
-            "avoid_direction": int(self._state.avoid_direction),
-            "lidar_min_obs": round(min((r for r in scan.ranges
-                                       if r > 0 and math.isfinite(r)),
-                                       default=-1.0), 3),
-            "camera_min_obs": round(self._camera_obstacle_dist
-                                    if math.isfinite(self._camera_obstacle_dist)
-                                    else -1.0, 3),
+            "distance_clear_m": _safe(self._state.distance_clear_m, 0.0),
+            "goal_heading": _safe(self._state.goal_heading_rad, 0.0),
+            "current_yaw": _safe(self._current_yaw, 0.0),
+            "yaw_err": _safe(yaw_err, 0.0),
+            "avoid_direction": _ad,
+            "lidar_min_obs": _safe(lidar_min),
+            "camera_min_obs": _safe(cam_d),
             "hazard_action": self._last_hazard_action,
             "reason": cmd.reason,
-        })
+        }, allow_nan=False)
         self._pub_state.publish(s)
+
+        # Sade state — tek string, kolay loglama / RViz plot
+        ss = String()
+        ss.data = str(self._state.phase.value)
+        self._pub_state_short.publish(ss)
+
+        # Zengin debug — TASK-1 alanları
+        dbg = String()
+        dbg.data = json.dumps({
+            "state": str(self._state.phase.value),
+            "front_min": _safe(f_min),
+            "left_min": _safe(l_min),
+            "right_min": _safe(r_min),
+            "chosen_side": chosen_side,
+            "obstacle_detected": bool(obstacle_detected),
+            "camera_detected": bool(cam_detected),
+            "active_class": self._camera_active_class,
+            "current_yaw": _safe(self._current_yaw, 0.0),
+            "target_yaw": _safe(self._state.goal_heading_rad, 0.0),
+            "yaw_error": _safe(yaw_err, 0.0),
+            "cmd_linear": _safe(cmd.linear_x, 0.0),
+            "cmd_angular": _safe(cmd.angular_z, 0.0),
+        }, allow_nan=False)
+        self._pub_debug.publish(dbg)
 
 
 def main(args=None):
