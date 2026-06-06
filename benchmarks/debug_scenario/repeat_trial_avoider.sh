@@ -7,8 +7,12 @@
 #   WORLD=test_world OBSTACLES="3,0;5.5,0.4;8,-0.4;10.5,0;13.5,0.3;16,0" \
 #     ./repeat_trial_avoider.sh 5 parkur_test.csv
 #
-# Çıktı CSV: trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,
-#            avoider_phase,duration,reason
+# Çıktı CSV (TASK-2 sonrası): eski alanlar + telemetri.
+#   trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,
+#   avoider_phase,duration,reason,
+#   finish_reached,collision,min_obstacle_distance,max_y_deviation,
+#   final_y_error,state_transition_count,stuck_time,
+#   cmd_vel_oscillation_score,trial_duration,pass_strict
 
 set -u
 
@@ -43,8 +47,8 @@ err()  { echo -e "${R}[!!]${NC} $1"; }
 STOP_SH="$PROJECT_ROOT/scripts/stop_sim.sh"
 [[ -x "$STOP_SH" ]] || STOP_SH="$HOME/ika/scripts/stop_sim.sh"
 
-# CSV header
-echo "trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,avoider_phase,duration,reason" > "$OUT"
+# CSV header (TASK-2)
+echo "trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,avoider_phase,duration,reason,finish_reached,collision,min_obstacle_distance,max_y_deviation,final_y_error,state_transition_count,stuck_time,cmd_vel_oscillation_score,trial_duration,pass_strict" > "$OUT"
 ok "Çıktı: $OUT"
 ok "WORLD=$WORLD  OBSTACLES=$OBSTACLES  TIMEOUT=${TIMEOUT}s"
 
@@ -72,20 +76,60 @@ for i in $(seq 1 "$N_TRIALS"); do
   if ! kill -0 "$SIM_PID" 2>/dev/null; then
     err "Sim öldü. Son log:"
     tail -n 30 "$SIM_LOG"
-    echo "$i,FAIL_LAUNCH,nan,nan,-1,0,UNKNOWN,0,launch_died" >> "$OUT"
+    # TASK-2: FAIL_LAUNCH satırı da yeni kolonları içermeli (boş + 0).
+    echo "$i,FAIL_LAUNCH,,,,,UNKNOWN,0,launch_died,0,0,,,,0,0,0,0,0" >> "$OUT"
     FAIL_CNT=$((FAIL_CNT + 1))
     continue
   fi
 
   PASS_X="${PASS_X:-2.5}"
-  TRIAL_OUT=$(python3 "$SCRIPT_DIR/run_trial_avoider.py" --trial-id "$i" \
-              --timeout "$TIMEOUT" \
-              --obstacles "$OBSTACLES" \
-              --pass-x "$PASS_X" \
-              2>&1 | tail -n 1)
+  # TASK-2: trial koşumu — strict PASS=false artık exit 1 verir.
+  # if/then/else, exit kodunu yutar; ileride `set -e` eklense bile batch
+  # durdurulmaz. `set +e`/`set -e` KULLANILMAZ (mevcut shell opts korunur).
+  TRIAL_TMP="/tmp/ika_trial_${i}.out"
+  if python3 "$SCRIPT_DIR/run_trial_avoider.py" --trial-id "$i" \
+        --timeout "$TIMEOUT" \
+        --obstacles "$OBSTACLES" \
+        --pass-x "$PASS_X" \
+        > "$TRIAL_TMP" 2>&1; then
+    TRIAL_RC=0
+  else
+    TRIAL_RC=$?
+  fi
+
+  TRIAL_OUT=$(tail -n 1 "$TRIAL_TMP" 2>/dev/null || true)
+  TRIAL_OUT="${TRIAL_OUT%$'\r'}"
+  TRIAL_OUT="$(echo -n "$TRIAL_OUT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+  # 19 kolon doğrulaması — Python csv ile (split-on-comma değil).
+  # Geçersizse 0, geçerli ise 1 basılır.
+  TRIAL_VALID=$(python3 - "$TRIAL_OUT" <<'PY'
+import csv, io, sys
+line = sys.argv[1] if len(sys.argv) > 1 else ""
+if not line.strip():
+    print(0); sys.exit(0)
+try:
+    row = next(csv.reader(io.StringIO(line)))
+except Exception:
+    print(0); sys.exit(0)
+print(1 if len(row) == 19 else 0)
+PY
+)
+
+  if [[ "$TRIAL_VALID" != "1" ]]; then
+    err "Trial $i: çıktı 19 kolon değil (rc=$TRIAL_RC). Son 20 satır log:"
+    tail -n 20 "$TRIAL_TMP" 2>/dev/null || true
+    TRIAL_OUT="$i,FAIL_TRIAL,,,,,UNKNOWN,0,invalid_output,0,0,,,,0,0,0,0,0"
+  fi
+
   echo "$TRIAL_OUT" >> "$OUT"
-  echo "  -> $TRIAL_OUT"
-  if [[ "$TRIAL_OUT" == *",PASS,"* ]]; then
+  echo "  -> $TRIAL_OUT (rc=$TRIAL_RC)"
+
+  # TASK-2: PASS sayımı CSV'nin son sütununa (pass_strict) göre — exit kodu DEĞİL.
+  LAST_COL="${TRIAL_OUT##*,}"
+  LAST_COL="${LAST_COL%$'\r'}"
+  LAST_COL="$(echo -n "$LAST_COL" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  if [[ "$LAST_COL" == "1" ]]; then
     PASS_CNT=$((PASS_CNT + 1))
   else
     FAIL_CNT=$((FAIL_CNT + 1))
@@ -95,10 +139,10 @@ for i in $(seq 1 "$N_TRIALS"); do
   sleep "$BETWEEN_DELAY"
 done
 
-step "Özet"
+step "Özet (strict)"
 TOTAL=$((PASS_CNT + FAIL_CNT))
-echo "  PASS : $PASS_CNT / $TOTAL"
-echo "  FAIL : $FAIL_CNT / $TOTAL"
+echo "  STRICT PASS : $PASS_CNT / $TOTAL"
+echo "  FAIL        : $FAIL_CNT / $TOTAL"
 if [[ "$TOTAL" -gt 0 ]]; then
   PCT=$(awk "BEGIN{printf \"%.1f\", 100 * $PASS_CNT / $TOTAL}")
   echo "  Oran : %$PCT"
