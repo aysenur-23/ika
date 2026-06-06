@@ -20,7 +20,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # TASK-4A: no ROS nodes yet — added in TASK-4B.
+            # TASK-4B-1: dynamic local planner ROS node.
+            'dynamic_local_planner_node = '
+            'ika_local_planner.nodes.dynamic_local_planner_node:main',
         ],
     },
 )

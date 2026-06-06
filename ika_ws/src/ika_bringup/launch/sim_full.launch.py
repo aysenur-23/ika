@@ -57,7 +57,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'autonomous_mode', default_value='nav2',
             description="Suris modu: 'nav2' (default, goal-based + planlama) | "
-                        "'avoider' (reaktif) | 'off' (sadece perception)."),
+                        "'avoider' (reaktif) | 'dynamic' (TASK-4B: local "
+                        "planner) | 'off' (sadece perception)."),
         # TASK-3.1: trial harness için kapı. Varsayılan true.
         DeclareLaunchArgument(
             'auto_start', default_value='true',
@@ -115,6 +116,33 @@ def generate_launch_description():
             condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
         ),
 
+        # TASK-4B-1: Dynamic local planner (autonomous_mode == 'dynamic')
+        # Aynı /cmd_vel_nav + /avoider/* API'sini sağlar (harness uyumlu).
+        Node(
+            package='ika_local_planner',
+            executable='dynamic_local_planner_node',
+            name='dynamic_local_planner', output='screen',
+            parameters=[{
+                'use_sim_time': True,
+                'auto_start': LaunchConfiguration('auto_start'),
+                'control_rate_hz': 20.0,
+                'target_x': 22.0, 'target_y': 0.0,
+                'path_y': 0.0, 'target_heading_rad': 0.0,
+                'default_speed_mps': 0.22,
+                'slow_speed_mps': 0.12,
+                'max_angular_rps': 0.55,
+                'reflex_stop_distance_m': 0.20,
+                'safety_cost_threshold': 0.65,
+                'lookahead_m': 1.2,
+                'front_arc_deg': 60.0,
+                'costmap_width_m': 4.0,
+                'costmap_height_m': 4.0,
+                'costmap_res_m': 0.10,
+                'inflation_radius_m': 0.30,
+            }],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'dynamic'),
+        ),
+
         # cmd_vel relay — KRITIK (2026-06-04): collision_monitor cikisindan
         # geriye relay. Doğru zincir:
         #   DWB     -> /cmd_vel_nav         (planlanan hiz)
@@ -151,6 +179,14 @@ def generate_launch_description():
             name='cmd_vel_relay', output='log',
             arguments=['/cmd_vel_nav', '/cmd_vel'],
             condition=LaunchConfigurationEquals('autonomous_mode', 'avoider'),
+            parameters=[{'use_sim_time': True}],
+        ),
+        # TASK-4B-1: dynamic mode relay — avoider ile aynı (cmd_vel_nav → cmd_vel)
+        Node(
+            package='topic_tools', executable='relay',
+            name='cmd_vel_relay', output='log',
+            arguments=['/cmd_vel_nav', '/cmd_vel'],
+            condition=LaunchConfigurationEquals('autonomous_mode', 'dynamic'),
             parameters=[{'use_sim_time': True}],
         ),
         Node(

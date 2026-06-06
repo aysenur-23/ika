@@ -26,6 +26,8 @@ READY_WAIT="${READY_WAIT:-15}"
 BETWEEN_DELAY="${BETWEEN_DELAY:-3}"
 WORLD="${WORLD:-debug_world}"
 OBSTACLES="${OBSTACLES:-1.5,0.0}"
+# TASK-4B-1: autonomous_mode seçimi (avoider veya dynamic)
+AUTONOMOUS_MODE="${AUTONOMOUS_MODE:-avoider}"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
@@ -51,7 +53,7 @@ STOP_SH="$PROJECT_ROOT/scripts/stop_sim.sh"
 # CSV header (TASK-3.1 — 21 kolon)
 echo "trial_id,status,final_x,final_y,min_obs_dist,distance_clear_m,avoider_phase,duration,reason,finish_reached,collision,min_obstacle_distance,max_y_deviation,final_y_error,state_transition_count,stuck_time,cmd_vel_oscillation_score,trial_duration,pass_strict,trial_start_x,trial_start_y" > "$OUT"
 ok "Çıktı: $OUT"
-ok "WORLD=$WORLD  OBSTACLES=$OBSTACLES  TIMEOUT=${TIMEOUT}s"
+ok "WORLD=$WORLD  OBSTACLES=$OBSTACLES  TIMEOUT=${TIMEOUT}s  MODE=$AUTONOMOUS_MODE"
 
 PASS_CNT=0
 FAIL_CNT=0
@@ -65,9 +67,10 @@ for i in $(seq 1 "$N_TRIALS"); do
   : > "$SIM_LOG"
   # TASK-3.1: auto_start=false ile başlat — robot trial monitor /avoider/start
   # çağırana kadar hareket etmez. start_xy gerçek başlangıç olur.
+  # TASK-4B-1: AUTONOMOUS_MODE env var (avoider | dynamic) passthrough.
   setsid bash -c "exec ros2 launch ika_bringup sim_full.launch.py \
         headless:=true rviz:=false world:=$WORLD \
-        autonomous_mode:=avoider \
+        autonomous_mode:=$AUTONOMOUS_MODE \
         auto_start:=false \
         > '$SIM_LOG' 2>&1" < /dev/null &
   SIM_PID=$!
