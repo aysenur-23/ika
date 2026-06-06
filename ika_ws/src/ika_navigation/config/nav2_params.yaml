@@ -136,21 +136,31 @@ controller_server:
 planner_server:
   ros__parameters:
     use_sim_time: false
-    # FIX (2026-06-04): expected_planner_frequency 5 -> 2 Hz +
-    # BT RateController hz=1.0 yerine planner_server'in kendisi cagirilmasi
-    # gerek. Engel onunde takilan robot icin replan agresif yapildi.
     expected_planner_frequency: 2.0
     planner_plugins: ["GridBased"]
+    # KRITIK YENIDEN AYAR (2026-06-05): NavfnPlanner (grid-based A*) ->
+    # SmacPlannerHybrid (Hybrid-A*, kinematik bilinçli).
+    # Sebep: NavfnPlanner ile Faz 3'te robot merkez-çizgi takıntısından
+    # kurtarılamadı (DWB plan-dominant tuning, 25s settle dahi yetmedi).
+    # SmacPlannerHybrid kinematik kısıtları planlama sırasında dikkate alır,
+    # diff-drive için 0 minimum_turning_radius ile yerinde döner.
     GridBased:
-      plugin: "nav2_navfn_planner::NavfnPlanner"
+      plugin: "nav2_smac_planner::SmacPlannerHybrid"
       tolerance: 0.5
-      # FIX (2026-06-04): use_astar false (Dijkstra) -> TRUE (A*).
-      # A* engel etrafindan daha akilli yol planlar (kullanici talebi:
-      # "A* falan çalışacaktı"). Dijkstra dusuk maliyet alanlari sevdigi
-      # icin engel inflation'i icinden gecmek isteyebiliyordu; A* heuristic
-      # ile dogrudan goal'e yon verir + inflation'dan kacar.
-      use_astar: true
+      motion_model_for_search: "DUBIN"
+      angle_quantization_bins: 72
+      cost_travel_multiplier: 2.0
+      smooth_path: true
+      # diff drive yerinde donebilir -> 0 (motor sinirlamasi yok)
+      minimum_turning_radius: 0.10
+      reverse_penalty: 2.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.20
       allow_unknown: true
+      max_iterations: 1000000
+      max_planning_time: 5.0
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
 
 behavior_server:
   ros__parameters:
