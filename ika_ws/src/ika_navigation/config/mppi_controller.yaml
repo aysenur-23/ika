@@ -30,7 +30,7 @@ controller_server:
       az_max: 2.0
       iteration_count: 1
       prune_distance: 1.7
-      transform_tolerance: 0.2
+      transform_tolerance: 1.0   # WSL TF cache uyumsuzlugu icin (DWB ile ayni mantik)
       temperature: 0.3
       gamma: 0.015
       motion_model: "DiffDrive"

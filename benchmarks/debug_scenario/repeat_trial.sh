@@ -78,8 +78,11 @@ for i in $(seq 1 "$N_TRIALS"); do
   # LAUNCH_EXTRA env var ile ablasyon launch arg'leri eklenebilir:
   # LAUNCH_EXTRA="bypass_collision_monitor:=true" ./repeat_trial.sh ...
   LAUNCH_EXTRA="${LAUNCH_EXTRA:-}"
+  # LOCAL_PLANNER env: dwb (default) veya mppi
+  LOCAL_PLANNER="${LOCAL_PLANNER:-dwb}"
   setsid bash -c "exec ros2 launch ika_bringup sim_full.launch.py \
-        headless:=true rviz:=false world:=debug_world $LAUNCH_EXTRA \
+        headless:=true rviz:=false world:=debug_world \
+        local_planner:=$LOCAL_PLANNER $LAUNCH_EXTRA \
         > '$SIM_LOG' 2>&1" < /dev/null &
   SIM_PID=$!
   echo "$SIM_PID" > /tmp/ika_sim.pid
