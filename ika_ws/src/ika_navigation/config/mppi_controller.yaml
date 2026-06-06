@@ -15,7 +15,9 @@ controller_server:
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 56
-      model_dt: 0.05
+      # FIX (2026-06-05): controller_frequency 5 Hz (Plucky port) => period 0.2s.
+      # MPPI "Controller period more then model dt" hatasi -> model_dt = 0.2.
+      model_dt: 0.2
       batch_size: 2000
       vx_std: 0.2
       vy_std: 0.2
