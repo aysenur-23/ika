@@ -54,10 +54,16 @@ class ObstacleAvoiderNode(Node):
         self.declare_parameter('control_rate_hz', 10.0)
         self.declare_parameter('start_delay_s', 3.0)
 
+        # Yeni parametreler: PASSING + hysteresis (avoider_logic v2)
+        self.declare_parameter('release_distance_m', 1.00)
+        self.declare_parameter('pass_clear_distance_m', 0.50)
+
         self._cfg = AvoiderConfig(
             forward_speed_mps=float(self.get_parameter('forward_speed_mps').value),
             turn_speed_rps=float(self.get_parameter('turn_speed_rps').value),
             obstacle_distance_m=float(self.get_parameter('obstacle_distance_m').value),
+            release_distance_m=float(self.get_parameter('release_distance_m').value),
+            pass_clear_distance_m=float(self.get_parameter('pass_clear_distance_m').value),
             front_arc_deg=float(self.get_parameter('front_arc_deg').value),
             target_distance_m=float(self.get_parameter('target_distance_m').value),
             yaw_tolerance_rad=float(self.get_parameter('yaw_tolerance_rad').value),
@@ -66,6 +72,9 @@ class ObstacleAvoiderNode(Node):
         self._last_scan: Optional[LaserScan] = None
         self._last_hazard_action: str = "CLEAR"
         self._current_yaw: float = 0.0
+        # Gerçek odom pozisyonu — delta hesaplamak için
+        self._last_position: Optional[tuple] = None
+        self._current_position: Optional[tuple] = None
         self._start_time = time.time()
         self._start_delay = float(self.get_parameter('start_delay_s').value)
 
@@ -96,6 +105,8 @@ class ObstacleAvoiderNode(Node):
     def _on_odom(self, msg: Odometry):
         q = msg.pose.pose.orientation
         self._current_yaw = _yaw_from_quaternion(q.x, q.y, q.z, q.w)
+        p = msg.pose.pose.position
+        self._current_position = (p.x, p.y)
 
     def _on_hazard(self, msg: String):
         try:
@@ -122,9 +133,14 @@ class ObstacleAvoiderNode(Node):
         if scan is None:
             return
 
+        # Gerçek odom-based delta (DRIVING ve PASSING fazlarında hareket var)
         odom_delta_m = 0.0
-        if self._state.phase == AvoiderPhase.DRIVING:
-            odom_delta_m = self._cfg.forward_speed_mps * self._period
+        if self._current_position is not None and self._last_position is not None:
+            dx = self._current_position[0] - self._last_position[0]
+            dy = self._current_position[1] - self._last_position[1]
+            odom_delta_m = math.hypot(dx, dy)
+        if self._current_position is not None:
+            self._last_position = self._current_position
 
         total_fov = scan.angle_max - scan.angle_min
         cmd = decide(
