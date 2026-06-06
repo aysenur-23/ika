@@ -97,10 +97,13 @@ for i in $(seq 1 "$N_TRIALS"); do
     continue
   fi
 
-  # Trial koşumu (COLLISION_THRESHOLD env ile override edilebilir)
+  # Trial koşumu (COLLISION_THRESHOLD/GOAL_X/GOAL_Y env ile override edilebilir)
   COLL_THRESH="${COLLISION_THRESHOLD:-0.05}"
+  GOAL_X="${GOAL_X:-3.0}"
+  GOAL_Y="${GOAL_Y:-0.0}"
   TRIAL_OUT=$(python3 "$SCRIPT_DIR/run_trial.py" --trial-id "$i" \
               --timeout "$TIMEOUT" --collision-threshold "$COLL_THRESH" \
+              --goal-x "$GOAL_X" --goal-y "$GOAL_Y" \
               2>&1 | tail -n 1)
   echo "$TRIAL_OUT" >> "$OUT"
   echo "  -> $TRIAL_OUT"

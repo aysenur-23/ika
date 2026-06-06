@@ -43,7 +43,7 @@ from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationExc
 
 # debug_world.sdf'teki sabit konfig
 OBSTACLE_XY = (1.5, 0.0)
-GOAL_XY = (3.0, 0.0)
+DEFAULT_GOAL_XY = (3.0, 0.0)
 DEFAULT_COLLISION_THRESHOLD = 0.05   # m — varsayilan: ~temas (engel yarıçapı 0.20, robot bbox ~0.30)
 GOAL_TOLERANCE = 0.50                 # m — bundan yakın = goal'e vardı
 
@@ -181,18 +181,16 @@ class TrialMonitor(Node):
             rclpy.spin_once(self, timeout_sec=0.2)
             try:
                 self.tf_buf.lookup_transform('map', 'base_link', Time())
-                # KRITIK (2026-06-05): Topic publish geldikten sonra GLOBAL
-                # COSTMAP'in obstacle_layer'ı /scan birikimiyle dolması zaman
-                # alır. 3s settle yetersizdi — capture_plan'da 30s sleep ile
-                # plan eğri oluyordu, trial'da 3s ile düz kalıyordu. 15s'ye
-                # çıkartıldı: costmap update_frequency 5 Hz × 15s = 75 scan
-                # işlemi -> engel global costmap'te kesin marked.
+                # Settle: costmap obstacle birikimi için bekleme.
+                # 15s denendi, varyansı artırdı (bazı trial'lar instant
+                # abort). 5s sweet spot — yeterli scan birikimi + BT
+                # zaman aşımı tetiklenmez.
                 ready_time = time.time() - t0
                 self.get_logger().info(
                     f'Probe OK: {ready_time:.1f}s '
                     f'(odom+nav2+map+local+global+tf). '
-                    f'15s costmap+BT settle için bekliyorum...')
-                settle_end = time.time() + 15.0
+                    f'5s costmap+BT settle için bekliyorum...')
+                settle_end = time.time() + 5.0
                 while time.time() < settle_end:
                     rclpy.spin_once(self, timeout_sec=0.1)
                 self.get_logger().info(
@@ -218,7 +216,7 @@ class TrialMonitor(Node):
 
     def run_trial(self, timeout_s: float) -> dict:
         """Goal gönder + sonucu bekle. dict döner."""
-        send_future = self.send_goal(*GOAL_XY)
+        send_future = self.send_goal(*self.goal_xy)
         # send_goal accept'i bekle
         rclpy.spin_until_future_complete(self, send_future, timeout_sec=5.0)
         if not send_future.done() or send_future.result() is None:
@@ -255,8 +253,8 @@ class TrialMonitor(Node):
         # Nav2 SUCCEEDED dese bile, gerçek pozisyona bak
         if self.odom_xy is None:
             return self._mkresult('FAIL_NAV', nav_result=nav_result)
-        dx = self.odom_xy[0] - GOAL_XY[0]
-        dy = self.odom_xy[1] - GOAL_XY[1]
+        dx = self.odom_xy[0] - self.goal_xy[0]
+        dy = self.odom_xy[1] - self.goal_xy[1]
         dist = math.hypot(dx, dy)
 
         if self.collision_triggered:
@@ -269,7 +267,7 @@ class TrialMonitor(Node):
 
     def _mkresult(self, status: str, nav_result: str = '') -> dict:
         rx, ry = self.odom_xy if self.odom_xy else (float('nan'), float('nan'))
-        dist = math.hypot(rx - GOAL_XY[0], ry - GOAL_XY[1]) if self.odom_xy else float('nan')
+        dist = math.hypot(rx - self.goal_xy[0], ry - self.goal_xy[1]) if self.odom_xy else float('nan')
         duration = (time.time() - self.t_start) if self.t_start else 0.0
         return {
             'status': status,
@@ -290,10 +288,15 @@ def main():
     ap.add_argument('--collision-threshold', type=float,
                     default=DEFAULT_COLLISION_THRESHOLD,
                     help='m, bundan yakın = FAIL_COLL (default 0.05 = temas)')
+    ap.add_argument('--goal-x', type=float, default=DEFAULT_GOAL_XY[0])
+    ap.add_argument('--goal-y', type=float, default=DEFAULT_GOAL_XY[1])
     args = ap.parse_args()
 
     rclpy.init()
-    node = TrialMonitor(collision_threshold=args.collision_threshold)
+    node = TrialMonitor(
+        collision_threshold=args.collision_threshold,
+        goal_xy=(args.goal_x, args.goal_y),
+    )
 
     if not node.wait_for_sim_ready(timeout=args.ready_timeout):
         result = {
